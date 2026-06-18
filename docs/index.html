@@ -661,6 +661,7 @@
     label {
       display: grid;
       gap: 5px;
+      min-width: 0;
       color: var(--muted);
       font-size: .75rem;
       font-weight: 850;
@@ -682,6 +683,17 @@
     select {
       height: 42px;
       padding: 0 10px;
+    }
+
+    input[type="date"],
+    input[type="time"] {
+      min-width: 0;
+      max-width: 100%;
+      padding-left: 8px;
+      padding-right: 8px;
+      font-size: .86rem;
+      -webkit-appearance: none;
+      appearance: none;
     }
 
     textarea {
