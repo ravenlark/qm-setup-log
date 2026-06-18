@@ -1,0 +1,3147 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#111827">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Setup Log">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
+  <title>Setup Log</title>
+  <style>
+    :root {
+      --bg: #f5f7f4;
+      --ink: #18202a;
+      --muted: #68727f;
+      --panel: #ffffff;
+      --line: #d9ded8;
+      --field: #f8faf7;
+      --primary: #cf3e2f;
+      --primary-dark: #a82d22;
+      --accent: #0b6f83;
+      --good: #19764b;
+      --warn: #b96b11;
+      --shadow: 0 10px 24px rgba(21, 31, 43, .09);
+      color-scheme: light;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(255,255,255,.68), rgba(255,255,255,0) 40%),
+        radial-gradient(circle at top right, rgba(11, 111, 131, .14), transparent 34rem),
+        var(--bg);
+      color: var(--ink);
+    }
+
+    button,
+    input,
+    select,
+    textarea {
+      font: inherit;
+    }
+
+    button {
+      border: 0;
+      cursor: pointer;
+      touch-action: manipulation;
+    }
+
+    .app-shell {
+      width: min(100%, 980px);
+      min-height: 100vh;
+      margin: 0 auto;
+      padding: 16px 14px 96px;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 10;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin: -16px -14px 12px;
+      padding: calc(12px + env(safe-area-inset-top)) 14px 12px;
+      background: rgba(245, 247, 244, .92);
+      border-bottom: 1px solid rgba(217, 222, 216, .9);
+      backdrop-filter: blur(14px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      min-width: 0;
+    }
+
+    .brand-mark {
+      width: 38px;
+      height: 38px;
+      border-radius: 8px;
+      background:
+        linear-gradient(45deg, #111827 25%, transparent 25% 75%, #111827 75%) 0 0 / 16px 16px,
+        linear-gradient(45deg, transparent 25%, #fff 25% 75%, transparent 75%) 0 0 / 16px 16px,
+        #fff;
+      border: 2px solid #111827;
+      box-shadow: 4px 4px 0 var(--primary);
+      flex: 0 0 auto;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 1.12rem;
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      color: var(--muted);
+      font-size: .78rem;
+      margin-top: 2px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .icon-button,
+    .primary-button,
+    .accent-button,
+    .success-button,
+    .secondary-button,
+    .danger-button {
+      min-height: 44px;
+      border-radius: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      font-weight: 750;
+    }
+
+    .icon-button {
+      width: 44px;
+      color: var(--ink);
+      background: var(--panel);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+    }
+
+    .primary-button {
+      color: #fff;
+      background: var(--primary);
+      padding: 0 16px;
+    }
+
+    .primary-button:hover { background: var(--primary-dark); }
+
+    .accent-button {
+      color: #fff;
+      background: var(--accent);
+      padding: 0 16px;
+    }
+
+    .accent-button:hover {
+      background: #07586a;
+    }
+
+    .secondary-button {
+      color: var(--ink);
+      background: #fff;
+      border: 1px solid var(--line);
+      padding: 0 14px;
+    }
+
+    .danger-button {
+      color: #fff;
+      background: #9f281f;
+      padding: 0 14px;
+    }
+
+    .success-button {
+      color: #fff;
+      background: var(--good);
+      padding: 0 16px;
+    }
+
+    .success-button:hover {
+      background: #125f3b;
+    }
+
+    .full-width {
+      width: 100%;
+      grid-column: 1 / -1;
+    }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin-bottom: 14px;
+    }
+
+    .stat {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 11px 10px;
+      box-shadow: var(--shadow);
+      min-width: 0;
+    }
+
+    .stat strong {
+      display: block;
+      font-size: 1.25rem;
+      line-height: 1;
+    }
+
+    .stat span {
+      display: block;
+      color: var(--muted);
+      font-size: .72rem;
+      margin-top: 5px;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+
+    .filter-row {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .search {
+      position: relative;
+    }
+
+    .search input {
+      width: 100%;
+      height: 46px;
+      padding: 0 12px 0 39px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--ink);
+      outline: none;
+    }
+
+    .search svg {
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--muted);
+      pointer-events: none;
+    }
+
+    .tabs {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 4px;
+      padding: 4px;
+      background: #e8ece6;
+      border-radius: 8px;
+      margin-bottom: 12px;
+    }
+
+    .tab {
+      height: 40px;
+      border-radius: 6px;
+      color: var(--muted);
+      background: transparent;
+      font-size: .82rem;
+      font-weight: 800;
+    }
+
+    .tab.active {
+      background: #fff;
+      color: var(--ink);
+      box-shadow: 0 2px 8px rgba(21, 31, 43, .08);
+    }
+
+    .panel {
+      display: none;
+    }
+
+    .panel.active {
+      display: block;
+    }
+
+    .session-list {
+      display: grid;
+      gap: 6px;
+      max-height: 72vh;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .main-layout {
+      display: grid;
+      gap: 16px;
+    }
+
+    .session-history {
+      order: 2;
+    }
+
+    #entryPanel {
+      order: 1;
+    }
+
+    .session-card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-left: 5px solid var(--accent);
+      border-radius: 8px;
+      padding: 10px;
+      box-shadow: var(--shadow);
+    }
+
+    .session-row {
+      padding: 0;
+      overflow: hidden;
+    }
+
+    .session-card.baseline {
+      background: #fff8df;
+      border-color: #e5c56a;
+      border-left-color: #9a6a00;
+    }
+
+    .session-card.baseline .session-row-body {
+      border-top-color: #e5c56a;
+    }
+
+    .session-row summary {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: center;
+      padding: 9px 10px;
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .session-row summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .session-row-body {
+      padding: 0 10px 10px;
+      border-top: 1px solid var(--line);
+    }
+
+    .session-line {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px 8px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .session-line strong {
+      font-size: .93rem;
+      overflow-wrap: anywhere;
+    }
+
+    .session-metrics {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 5px;
+      justify-content: flex-end;
+    }
+
+    .metric-pill {
+      min-height: 24px;
+      display: inline-flex;
+      align-items: center;
+      border-radius: 999px;
+      padding: 0 8px;
+      background: var(--field);
+      border: 1px solid var(--line);
+      color: var(--muted);
+      font-size: .7rem;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .engine-details {
+      display: grid;
+      gap: 4px;
+      margin: 8px 0 2px;
+    }
+
+    .engine-details p {
+      margin: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .engine-details strong {
+      color: var(--ink);
+      font-weight: 850;
+    }
+
+    .session-card.main { border-left-color: var(--primary); }
+    .session-card.heat { border-left-color: var(--good); }
+    .session-card.qualifying { border-left-color: var(--warn); }
+
+    .session-head {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    .session-title {
+      margin: 0;
+      font-size: 1rem;
+      line-height: 1.2;
+      overflow-wrap: anywhere;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      height: 24px;
+      border-radius: 999px;
+      padding: 0 9px;
+      background: #edf3f4;
+      color: var(--accent);
+      font-size: .72rem;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: .82rem;
+      margin: 5px 0 0;
+    }
+
+    .card-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+      margin: 12px 0;
+    }
+
+    .mini {
+      background: var(--field);
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      padding: 8px 6px;
+      min-width: 0;
+      text-align: center;
+    }
+
+    .mini span {
+      display: block;
+      color: var(--muted);
+      font-size: .68rem;
+      font-weight: 800;
+    }
+
+    .mini strong {
+      display: block;
+      font-size: .92rem;
+      margin-top: 2px;
+      overflow-wrap: anywhere;
+    }
+
+    .card-actions {
+      display: flex;
+      justify-content: flex-end;
+      gap: 7px;
+    }
+
+    .small-button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 40px;
+      min-height: 38px;
+      padding: 0 10px;
+      border-radius: 7px;
+      color: var(--ink);
+      background: #f3f6f1;
+      border: 1px solid var(--line);
+      font-size: .82rem;
+      font-weight: 800;
+    }
+
+    .session-list .small-button {
+      width: 40px;
+      padding: 0;
+    }
+
+    .icon-only {
+      width: 40px;
+      padding: 0;
+    }
+
+    .small-button svg {
+      width: 18px;
+      height: 18px;
+      pointer-events: none;
+    }
+
+    .small-button.active {
+      color: #7a4f00;
+      background: #fff2be;
+      border-color: #d6a514;
+    }
+
+    .small-button.active svg {
+      fill: currentColor;
+    }
+
+    .empty {
+      background: #fff;
+      border: 1px dashed #b9c1b8;
+      border-radius: 8px;
+      padding: 22px 16px;
+      text-align: center;
+      color: var(--muted);
+    }
+
+    form {
+      display: grid;
+      gap: 12px;
+    }
+
+    fieldset {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: var(--shadow);
+      margin: 0;
+      padding: 12px;
+    }
+
+    legend {
+      padding: 0 6px;
+      font-weight: 900;
+      font-size: .86rem;
+    }
+
+    .form-section {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .form-section summary {
+      min-height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 12px;
+      color: var(--ink);
+      font-weight: 900;
+      cursor: pointer;
+      list-style: none;
+    }
+
+    .form-section summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .form-section summary::after {
+      content: "+";
+      color: var(--muted);
+      font-size: 1.1rem;
+      line-height: 1;
+    }
+
+    .form-section[open] summary::after {
+      content: "-";
+    }
+
+    .form-section fieldset {
+      border: 0;
+      border-top: 1px solid var(--line);
+      border-radius: 0;
+      box-shadow: none;
+      background: transparent;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+    }
+
+    .form-grid.single { grid-template-columns: 1fr; }
+    .form-grid.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .form-grid.pair { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+    .form-grid + .form-grid {
+      margin-top: 10px;
+    }
+
+    .corner-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .corner-box {
+      display: grid;
+      gap: 8px;
+      min-width: 0;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfa;
+    }
+
+    .corner-title {
+      margin: 0;
+      color: var(--ink);
+      font-size: .78rem;
+      font-weight: 900;
+    }
+
+    .calculated-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 6px;
+      margin: 10px 0;
+    }
+
+    .calc-stat {
+      min-width: 0;
+      padding: 8px 6px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--field);
+      text-align: center;
+    }
+
+    .calc-stat span {
+      display: block;
+      color: var(--muted);
+      font-size: .66rem;
+      font-weight: 850;
+    }
+
+    .calc-stat strong {
+      display: block;
+      margin-top: 2px;
+      font-size: .86rem;
+      overflow-wrap: anywhere;
+    }
+
+    .calculated-grid.centered {
+      display: flex;
+      justify-content: center;
+    }
+
+    .calculated-grid.centered .calc-stat {
+      width: min(100%, 260px);
+      text-align: center;
+    }
+
+    label {
+      display: grid;
+      gap: 5px;
+      color: var(--muted);
+      font-size: .75rem;
+      font-weight: 850;
+    }
+
+    input,
+    select,
+    textarea {
+      width: 100%;
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--field);
+      color: var(--ink);
+      outline: none;
+    }
+
+    input,
+    select {
+      height: 42px;
+      padding: 0 10px;
+    }
+
+    textarea {
+      min-height: 86px;
+      resize: vertical;
+      padding: 10px;
+    }
+
+    input:focus,
+    select:focus,
+    textarea:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(11, 111, 131, .13);
+    }
+
+    .form-actions {
+      position: sticky;
+      bottom: 0;
+      z-index: 8;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin: 0 -14px;
+      padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
+      background: rgba(245, 247, 244, .94);
+      border-top: 1px solid var(--line);
+      backdrop-filter: blur(14px);
+    }
+
+    .compare-box,
+    .data-box {
+      display: grid;
+      gap: 10px;
+    }
+
+    .compare-card,
+    .data-card {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 13px;
+      box-shadow: var(--shadow);
+    }
+
+    .compare-row {
+      display: grid;
+      grid-template-columns: minmax(86px, 1fr) minmax(58px, .8fr) minmax(58px, .8fr);
+      gap: 8px;
+      align-items: center;
+      padding: 9px 0;
+      border-top: 1px solid var(--line);
+      font-size: .86rem;
+    }
+
+    .compare-row:first-child { border-top: 0; }
+
+    .compare-row.changed {
+      margin-left: -7px;
+      margin-right: -7px;
+      padding-left: 7px;
+      padding-right: 7px;
+      border-radius: 7px;
+      background: #fff4df;
+      border-top-color: #edc57d;
+    }
+
+    .compare-row span:first-child {
+      color: var(--muted);
+      font-weight: 850;
+    }
+
+    .compare-row strong {
+      text-align: right;
+      overflow-wrap: anywhere;
+    }
+
+    .compare-row.changed strong:first-of-type {
+      color: #8f3b14;
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    .data-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .utility-details {
+      margin-top: 14px;
+    }
+
+    .utility-details summary {
+      min-height: 42px;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      color: var(--muted);
+      font-weight: 850;
+      cursor: pointer;
+      box-shadow: var(--shadow);
+    }
+
+    .utility-details .data-card {
+      margin-top: 8px;
+    }
+
+    .inline-control {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      gap: 8px;
+      align-items: end;
+    }
+
+    .compare-controls {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+      margin: 12px 0;
+    }
+
+    .compare-controls .wide {
+      grid-column: 1 / -1;
+    }
+
+    .compare-hint {
+      grid-column: 1 / -1;
+      margin: 0;
+      padding: 8px 10px;
+      border: 1px solid #c9d9df;
+      border-radius: 7px;
+      background: #eef6f8;
+      color: var(--accent);
+      font-size: .78rem;
+      font-weight: 800;
+    }
+
+    .diff-summary {
+      display: grid;
+      gap: 8px;
+      margin: 12px 0;
+      padding: 10px;
+      border: 1px solid #edd49a;
+      border-left: 4px solid #b7791f;
+      border-radius: 8px;
+      background: #fff8e6;
+    }
+
+    .diff-summary h3 {
+      margin: 0;
+      font-size: .88rem;
+    }
+
+    .diff-summary p {
+      margin: 0;
+      color: var(--muted);
+      font-size: .8rem;
+      font-weight: 750;
+    }
+
+    .diff-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .diff-list li {
+      padding: 5px 7px;
+      border: 1px solid #edc57d;
+      border-radius: 7px;
+      background: #fff;
+      color: #7a3a0f;
+      font-size: .76rem;
+      font-weight: 850;
+    }
+
+    .cars-layout {
+      display: grid;
+      gap: 24px;
+    }
+
+    .car-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .garage-section {
+      display: grid;
+      gap: 6px;
+    }
+
+    .hidden {
+      display: none !important;
+    }
+
+    .toast {
+      position: fixed;
+      left: 14px;
+      right: 14px;
+      bottom: calc(72px + env(safe-area-inset-bottom));
+      z-index: 30;
+      transform: translateY(18px);
+      opacity: 0;
+      pointer-events: none;
+      transition: .2s ease;
+      background: #111827;
+      color: #fff;
+      border-radius: 8px;
+      padding: 12px 14px;
+      font-weight: 750;
+      box-shadow: var(--shadow);
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    @media (min-width: 760px) {
+      .app-shell {
+        padding: 22px 20px 110px;
+      }
+
+      .topbar {
+        margin: -22px -20px 16px;
+        padding-left: 20px;
+        padding-right: 20px;
+      }
+
+      .main-layout {
+        grid-template-columns: minmax(320px, .9fr) minmax(420px, 1.1fr);
+        gap: 16px;
+        align-items: start;
+      }
+
+      .session-history {
+        order: 1;
+      }
+
+      #entryPanel {
+        order: 2;
+      }
+
+      .toolbar {
+        margin-bottom: 14px;
+      }
+
+      .tabs {
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+      }
+
+      .form-actions {
+        position: static;
+        margin: 0;
+        padding: 0;
+        background: transparent;
+        border-top: 0;
+        backdrop-filter: none;
+      }
+
+      .cars-layout {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+        gap: 20px;
+        align-items: start;
+      }
+
+      .garage-section.wide {
+        grid-column: 1 / -1;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"></div>
+        <div>
+          <h1>Setup Log</h1>
+          <div class="subtitle">Quarter midget race notes</div>
+        </div>
+      </div>
+    </header>
+
+    <nav class="tabs" aria-label="Main views">
+      <button class="tab active" type="button" data-tab="sessions">Sessions</button>
+      <button class="tab" type="button" data-tab="cars">My Garage</button>
+      <button class="tab" type="button" data-tab="tracks">Tracks</button>
+      <button class="tab" type="button" data-tab="comparison">Session Comparisons</button>
+    </nav>
+
+    <section class="panel active" id="sessionsPanel">
+      <div class="main-layout">
+      <section class="session-history">
+        <div class="toolbar">
+          <div class="search">
+            <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+            <input id="searchInput" type="search" placeholder="Search track, engine, driver, notes">
+          </div>
+        </div>
+        <div class="filter-row">
+          <label>Car
+            <select id="sessionCarFilter"></select>
+          </label>
+          <label>Type
+            <select id="sessionTypeFilter">
+              <option value="">All Types</option>
+              <option>Practice</option>
+              <option>Qualifying</option>
+              <option>Heat</option>
+              <option>Main</option>
+            </select>
+          </label>
+        </div>
+        <div class="session-list" id="sessionList"></div>
+      </section>
+
+      <section id="entryPanel">
+        <form id="setupForm" autocomplete="off">
+          <input type="hidden" id="entryId">
+
+          <fieldset>
+            <legend>Start From Previous Setup</legend>
+            <div class="form-grid">
+              <label>Previous Setup
+                <select id="previousSetupId"></select>
+              </label>
+              <label>Action
+                <button class="accent-button" id="startFromPreviousButton" type="button">Use Previous Setup</button>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Track</legend>
+            <div class="form-grid single">
+              <label>Track
+                <select id="trackId" required></select>
+                <input id="track" type="hidden">
+              </label>
+            </div>
+            <div class="form-grid">
+              <label>Air Temp (F)
+                <input id="airTemp" type="number" min="0" step="0.1" placeholder="72">
+              </label>
+              <label>Humidity (%)
+                <input id="humidity" type="number" min="0" max="100" step="0.1" placeholder="45">
+              </label>
+              <label>Track Temp (F)
+                <input id="trackTemp" type="number" min="0" step="0.1" placeholder="93">
+              </label>
+              <label>Track Condition
+                <input id="condition" placeholder="Green, rubbered, dusty">
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Session</legend>
+            <div class="form-grid">
+              <label>Date
+                <input id="date" type="date" required>
+              </label>
+              <label>Time
+                <input id="sessionTime" type="time">
+              </label>
+              <label>Car
+                <select id="carId" required></select>
+              </label>
+              <label>Installed Engine
+                <select id="engineId" required></select>
+              </label>
+              <label>Driver
+                <input id="driver" placeholder="Driver name">
+              </label>
+              <label>Session Type
+                <select id="type">
+                  <option>Practice</option>
+                  <option>Qualifying</option>
+                  <option>Heat</option>
+                  <option>Main</option>
+                </select>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Tires &amp; Suspension</legend>
+            <div class="corner-grid">
+              <div class="corner-box">
+                <h2 class="corner-title">LF</h2>
+                <label>PSI<input id="lfPsi" type="number" min="0" step="0.1"></label>
+                <label>Spring Rate (lb/in)<input id="lfSpringRate" type="number" min="0" step="1" placeholder="150"></label>
+                <label>Shock Valving<input id="lfShockValving" placeholder="3 / 5"></label>
+              </div>
+              <div class="corner-box">
+                <h2 class="corner-title">RF</h2>
+                <label>PSI<input id="rfPsi" type="number" min="0" step="0.1"></label>
+                <label>Spring Rate (lb/in)<input id="rfSpringRate" type="number" min="0" step="1" placeholder="175"></label>
+                <label>Shock Valving<input id="rfShockValving" placeholder="4 / 6"></label>
+              </div>
+              <div class="corner-box">
+                <h2 class="corner-title">LR</h2>
+                <label>PSI<input id="lrPsi" type="number" min="0" step="0.1"></label>
+                <label>Spring Rate (lb/in)<input id="lrSpringRate" type="number" min="0" step="1" placeholder="125"></label>
+                <label>Shock Valving<input id="lrShockValving" placeholder="3 / 4"></label>
+              </div>
+              <div class="corner-box">
+                <h2 class="corner-title">RR</h2>
+                <label>PSI<input id="rrPsi" type="number" min="0" step="0.1"></label>
+                <label>Spring Rate (lb/in)<input id="rrSpringRate" type="number" min="0" step="1" placeholder="150"></label>
+                <label>Shock Valving<input id="rrShockValving" placeholder="4 / 5"></label>
+              </div>
+            </div>
+            <div class="form-grid">
+              <label>Stagger (in)<input id="stagger" type="number" min="0" step="0.01" placeholder="1.75"></label>
+              <label>Tire Notes<input id="tireNotes" placeholder="Compound, prep, age"></label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Chassis</legend>
+            <div class="corner-grid">
+              <label>LF Weight (lb)<input id="lfWeight" type="number" min="0" step="0.1" placeholder="72"></label>
+              <label>RF Weight (lb)<input id="rfWeight" type="number" min="0" step="0.1" placeholder="64"></label>
+              <label>LR Weight (lb)<input id="lrWeight" type="number" min="0" step="0.1" placeholder="78"></label>
+              <label>RR Weight (lb)<input id="rrWeight" type="number" min="0" step="0.1" placeholder="68"></label>
+            </div>
+            <div class="calculated-grid" aria-label="Calculated weight percentages">
+              <div class="calc-stat"><span>Front</span><strong id="frontPercent">--</strong></div>
+              <div class="calc-stat"><span>Left</span><strong id="leftPercent">--</strong></div>
+              <div class="calc-stat"><span>Right</span><strong id="rightPercent">--</strong></div>
+              <div class="calc-stat"><span>Rear</span><strong id="rearPercent">--</strong></div>
+              <div class="calc-stat"><span>Cross</span><strong id="crossPercent">--</strong></div>
+            </div>
+            <div class="form-grid">
+              <label>LF Ride Height (in)<input id="lfRideHeight" type="number" min="0" step="0.01" placeholder="3.00"></label>
+              <label>RF Ride Height (in)<input id="rfRideHeight" type="number" min="0" step="0.01" placeholder="3.25"></label>
+              <label>LR Ride Height (in)<input id="lrRideHeight" type="number" min="0" step="0.01" placeholder="3.00"></label>
+              <label>RR Ride Height (in)<input id="rrRideHeight" type="number" min="0" step="0.01" placeholder="3.25"></label>
+              <label>Camber (deg)<input id="camber" placeholder="LF/RF"></label>
+              <label>Caster (deg)<input id="caster" placeholder="LF/RF"></label>
+            </div>
+            <div class="form-grid pair">
+              <label>Left Wheelbase (in)<input id="leftWheelbase" type="number" min="0" step="0.001" placeholder="49.875"></label>
+              <label>Right Wheelbase (in)<input id="rightWheelbase" type="number" min="0" step="0.001" placeholder="49.875"></label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Drivetrain</legend>
+            <div class="form-grid">
+              <label>Engine Gear (teeth)<input id="engineGear" type="number" min="1" step="1" placeholder="35"></label>
+              <label>Axle Gear (teeth)<input id="axleGear" type="number" min="1" step="1" placeholder="28"></label>
+              <input id="gearRatio" type="hidden">
+            </div>
+            <div class="calculated-grid centered" aria-label="Calculated gear ratio">
+              <div class="calc-stat"><span>Gear Ratio</span><strong id="gearRatioDisplay">--</strong></div>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Result</legend>
+            <div class="form-grid">
+              <label>Best Lap (sec)<input id="lapTime" type="number" min="0" step="0.001" placeholder="8.742"></label>
+              <label>Total Laps<input id="totalLaps" type="number" min="0" step="1" placeholder="25"></label>
+              <label>Average RPM<input id="averageRpm" type="number" min="0" step="1" placeholder="6100"></label>
+              <label>Average Drops (RPM)<input id="averageDrops" type="number" min="0" step="1" placeholder="400"></label>
+              <label id="startPositionField" class="hidden">Start Position<input id="startPosition" type="number" min="1" step="1" placeholder="3"></label>
+              <label id="endPositionField" class="hidden">End Position<input id="endPosition" type="number" min="1" step="1" placeholder="1"></label>
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Notes</legend>
+            <div class="form-grid single">
+              <label>Handling
+                <textarea id="handling" placeholder="Tight center, free off, snaps loose on entry"></textarea>
+              </label>
+              <label>Changes Made
+                <textarea id="changes" placeholder="Dropped RF .5 psi, adjusted corner weight, gear change"></textarea>
+              </label>
+              <label>Next Time
+                <textarea id="nextTime" placeholder="Try earlier throttle pickup, check tire growth"></textarea>
+              </label>
+            </div>
+          </fieldset>
+
+          <div class="form-actions">
+            <button class="secondary-button" id="clearButton" type="button">Clear</button>
+            <button class="success-button" type="submit">Save Setup</button>
+          </div>
+        </form>
+      </section>
+
+      </div>
+
+      <details class="utility-details">
+        <summary>Backup & Import</summary>
+        <div class="data-box">
+          <div class="data-card">
+            <h2 class="session-title">Data Tools</h2>
+            <p class="meta">Export a backup, load sample entries, or bring in a previous setup log JSON file.</p>
+            <div class="data-actions">
+              <button class="success-button full-width" id="seedButton" type="button">Load Sample Data</button>
+              <button class="secondary-button" id="exportJson" type="button">Export JSON</button>
+              <button class="secondary-button" id="exportCsv" type="button">Export CSV</button>
+              <button class="secondary-button" id="importButton" type="button">Import</button>
+              <button class="danger-button" id="wipeButton" type="button">Wipe Log</button>
+            </div>
+            <input class="file-input" id="importFile" type="file" accept="application/json">
+          </div>
+        </div>
+      </details>
+    </section>
+
+    <section class="panel" id="carsPanel">
+      <div class="cars-layout">
+        <section class="garage-section">
+          <div class="toolbar">
+            <h2 class="session-title">Cars</h2>
+            <button class="accent-button" id="showCarFormButton" type="button">Add Car</button>
+          </div>
+          <div id="carFormHost"></div>
+          <form id="carForm" class="hidden" autocomplete="off">
+            <input type="hidden" id="carEditId">
+            <fieldset>
+              <legend>Car</legend>
+              <div class="form-grid">
+                <label>Name
+                  <input id="carNameInput" required placeholder="Blue car">
+                </label>
+                <label>Installed Engine
+                  <select id="carCurrentEngineId"></select>
+                </label>
+                <label>Model
+                  <input id="carModel" placeholder="Nervo Coggin">
+                </label>
+                <label>Year
+                  <input id="carYear" type="number" min="1900" max="2100" step="1" placeholder="2024">
+                </label>
+              </div>
+              <div class="form-grid single">
+                <label>Notes
+                  <textarea id="carNotes" placeholder="Chassis notes, owner, serial number, baseline reminders"></textarea>
+                </label>
+              </div>
+            </fieldset>
+            <div class="form-actions">
+              <button class="secondary-button" id="clearCarButton" type="button">Cancel</button>
+              <button class="success-button" type="submit">Save Car</button>
+            </div>
+          </form>
+          <div class="car-list" id="carList"></div>
+        </section>
+
+        <section class="garage-section">
+          <div class="toolbar">
+            <h2 class="session-title">Engines</h2>
+            <button class="accent-button" id="showEngineFormButton" type="button">Add Engine</button>
+          </div>
+          <div id="engineFormHost"></div>
+          <form id="engineForm" class="hidden" autocomplete="off">
+            <input type="hidden" id="engineEditId">
+            <fieldset>
+              <legend>Engine</legend>
+              <div class="form-grid">
+                <label>Name
+                  <input id="engineNameInput" required placeholder="Honda A">
+                </label>
+                <label>Type
+                  <select id="engineTypeInput">
+                    <option>Honda 120</option>
+                    <option>Honda 160</option>
+                    <option>Briggs & Stratton Animal</option>
+                    <option>Briggs & Stratton World Formula</option>
+                    <option>DECO</option>
+                  </select>
+                </label>
+                <label>Serial / ID
+                  <input id="engineSerial" placeholder="HX-120-A">
+                </label>
+                <label>Last Maintenance
+                  <input id="engineLastMaintenance" type="date">
+                </label>
+              </div>
+              <div class="form-grid single">
+                <label>Notes
+                  <textarea id="engineNotes" placeholder="Maintenance history, refresh notes, backup engine status"></textarea>
+                </label>
+              </div>
+            </fieldset>
+            <div class="form-actions">
+              <button class="secondary-button" id="clearEngineButton" type="button">Cancel</button>
+              <button class="success-button" type="submit">Save Engine</button>
+            </div>
+          </form>
+          <div class="car-list" id="engineList"></div>
+        </section>
+
+      </div>
+    </section>
+
+    <section class="panel" id="tracksPanel">
+      <section class="garage-section">
+        <div class="toolbar">
+          <h2 class="session-title">Track Profiles</h2>
+          <button class="accent-button" id="showTrackFormButton" type="button">Add Track</button>
+        </div>
+        <div id="trackFormHost"></div>
+        <form id="trackForm" class="hidden" autocomplete="off">
+          <input type="hidden" id="trackEditId">
+          <fieldset>
+            <legend>Track Profile</legend>
+            <div class="form-grid">
+              <label>Name
+                <input id="trackNameInput" required placeholder="Blue Mountain">
+              </label>
+              <label>Location
+                <input id="trackLocation" placeholder="City, State">
+              </label>
+              <label>Surface
+                <input id="trackSurface" placeholder="Dirt, asphalt, concrete">
+              </label>
+              <label>Length
+                <input id="trackLength" placeholder="1/20 mile, 880 ft">
+              </label>
+              <label>Banking
+                <input id="trackBanking" placeholder="Flat, slight, medium, high">
+              </label>
+            </div>
+            <div class="form-grid single">
+              <label>Shape / Layout Notes
+                <textarea id="trackLayoutNotes" placeholder="Flat oval, tight entry, sweeping turns"></textarea>
+              </label>
+              <label>Racing Line Notes
+                <textarea id="trackLineNotes" placeholder="Bottom early, middle comes in late"></textarea>
+              </label>
+              <label>Surface Evolution Notes
+                <textarea id="trackSurfaceNotes" placeholder="Gets dusty, rubbers up, moisture comes back at night"></textarea>
+              </label>
+              <label>Tire / Stagger Notes
+                <textarea id="trackTireNotes" placeholder="Tire wear, stagger sensitivity, compound reminders"></textarea>
+              </label>
+              <label>Facility Notes
+                <textarea id="trackFacilityNotes" placeholder="Parking, scales, staging, power, tech notes"></textarea>
+              </label>
+              <label>General Notes
+                <textarea id="trackNotes" placeholder="Anything else worth remembering"></textarea>
+              </label>
+            </div>
+          </fieldset>
+          <div class="form-actions">
+            <button class="secondary-button" id="clearTrackButton" type="button">Cancel</button>
+            <button class="success-button" type="submit">Save Track</button>
+          </div>
+        </form>
+        <div class="car-list" id="trackList"></div>
+      </section>
+    </section>
+
+    <section class="panel" id="comparisonPanel">
+      <div class="compare-box" id="compareBox"></div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    const STORAGE_KEY = "raceSetupLog.sessions.v1";
+    const CARS_KEY = "raceSetupLog.cars.v1";
+    const ENGINES_KEY = "raceSetupLog.engines.v1";
+    const TRACKS_KEY = "raceSetupLog.tracks.v1";
+    const BASELINES_KEY = "raceSetupLog.baselines.v1";
+    const DRAFT_KEY = "raceSetupLog.sessionDraft.v1";
+    const $ = (id) => document.getElementById(id);
+    const GEARBOX_RATIOS = {
+      "Honda 120": 6.14,
+      "Honda 160": 6.14,
+      "Briggs & Stratton Animal": 6.07,
+      "Briggs & Stratton World Formula": 6.07,
+      "DECO": 5.73
+    };
+
+    const fields = [
+      "track", "trackId", "airTemp", "humidity", "trackTemp", "condition", "date", "sessionTime", "type", "engineId", "driver", "carId",
+      "lfPsi", "lfSpringRate", "lfShockValving", "rfPsi", "rfSpringRate", "rfShockValving",
+      "lrPsi", "lrSpringRate", "lrShockValving", "rrPsi", "rrSpringRate", "rrShockValving",
+      "stagger", "tireNotes", "lfWeight", "rfWeight", "lrWeight", "rrWeight", "lfRideHeight",
+      "rfRideHeight", "lrRideHeight", "rrRideHeight", "camber", "caster", "leftWheelbase",
+      "rightWheelbase", "engineGear", "axleGear", "gearRatio", "lapTime", "startPosition",
+      "endPosition", "averageRpm", "averageDrops", "totalLaps", "handling", "changes", "nextTime"
+    ];
+    const decimalNumericFields = [
+      "airTemp", "humidity", "trackTemp", "lfPsi", "rfPsi", "lrPsi", "rrPsi", "stagger",
+      "lfWeight", "rfWeight", "lrWeight", "rrWeight", "lfRideHeight", "rfRideHeight",
+      "lrRideHeight", "rrRideHeight", "leftWheelbase", "rightWheelbase", "lapTime"
+    ];
+    const integerNumericFields = [
+      "lfSpringRate", "rfSpringRate", "lrSpringRate", "rrSpringRate", "engineGear", "axleGear",
+      "totalLaps", "averageRpm", "averageDrops", "startPosition", "endPosition", "carYear"
+    ];
+
+    let cars = loadCars();
+    let engines = loadEngines();
+    let tracks = loadTracks();
+    let baselines = loadBaselines();
+    migrateEngineAssignments();
+    let sessions = loadSessions();
+    let activeTab = "sessions";
+    let compareCarId = "";
+    let compareCurrentId = "";
+    let comparePreviousId = "";
+    let suppressDraftSave = false;
+
+    function loadCars() {
+      try {
+        const loaded = JSON.parse(localStorage.getItem(CARS_KEY) || "[]");
+        return Array.isArray(loaded) ? loaded.map(normalizeCar) : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function loadSessions() {
+      try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]").map(normalizeSession);
+      } catch {
+        return [];
+      }
+    }
+
+    function loadEngines() {
+      try {
+        const loaded = JSON.parse(localStorage.getItem(ENGINES_KEY) || "[]");
+        return Array.isArray(loaded) ? loaded.map(normalizeEngine) : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function loadTracks() {
+      try {
+        const loaded = JSON.parse(localStorage.getItem(TRACKS_KEY) || "[]");
+        return Array.isArray(loaded) ? loaded.map(normalizeTrack) : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function loadBaselines() {
+      try {
+        const loaded = JSON.parse(localStorage.getItem(BASELINES_KEY) || "{}");
+        return loaded && typeof loaded === "object" && !Array.isArray(loaded) ? loaded : {};
+      } catch {
+        return {};
+      }
+    }
+
+    function saveSessions() {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(sessions));
+    }
+
+    function saveCars() {
+      localStorage.setItem(CARS_KEY, JSON.stringify(cars));
+    }
+
+    function saveEngines() {
+      localStorage.setItem(ENGINES_KEY, JSON.stringify(engines));
+    }
+
+    function saveTracks() {
+      localStorage.setItem(TRACKS_KEY, JSON.stringify(tracks));
+    }
+
+    function saveBaselines() {
+      localStorage.setItem(BASELINES_KEY, JSON.stringify(baselines));
+    }
+
+    function migrateEngineAssignments() {
+      let changed = false;
+      try {
+        const rawEngines = JSON.parse(localStorage.getItem(ENGINES_KEY) || "[]");
+        rawEngines.forEach((rawEngine) => {
+          if (!rawEngine?.carId) return;
+          const car = cars.find((item) => item.id === rawEngine.carId);
+          const engine = engines.find((item) => item.id === rawEngine.id);
+          if (car && engine && !car.currentEngineId) {
+            car.currentEngineId = engine.id;
+            changed = true;
+          }
+        });
+      } catch {
+        return;
+      }
+      if (changed) saveCars();
+    }
+
+    function showToast(message) {
+      const toast = $("toast");
+      toast.textContent = message;
+      toast.classList.add("show");
+      window.clearTimeout(showToast.timer);
+      showToast.timer = window.setTimeout(() => toast.classList.remove("show"), 2200);
+    }
+
+    function registerServiceWorker() {
+      if (!("serviceWorker" in navigator)) return;
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js").then((registration) => {
+          registration.addEventListener("updatefound", () => {
+            const worker = registration.installing;
+            if (!worker) return;
+            worker.addEventListener("statechange", () => {
+              if (worker.state === "installed" && navigator.serviceWorker.controller) {
+                showToast("Offline update ready. Refresh to use the latest version.");
+              }
+            });
+          });
+        }).catch(() => {
+          showToast("Offline mode could not be enabled on this browser.");
+        });
+      });
+    }
+
+    function setTab(tab) {
+      activeTab = tab;
+      document.querySelectorAll(".tab").forEach((button) => {
+        button.classList.toggle("active", button.dataset.tab === tab);
+      });
+      document.querySelectorAll(".panel").forEach((panel) => panel.classList.remove("active"));
+      $(`${tab}Panel`).classList.add("active");
+    }
+
+    function sortedSessions() {
+      return [...sessions].sort((a, b) => {
+        const dateSort = sessionDateTime(b) - sessionDateTime(a);
+        return dateSort || (b.createdAt || "").localeCompare(a.createdAt || "");
+      });
+    }
+
+    function sortedCars() {
+      return [...cars].sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    function sortedEngines() {
+      return [...engines].sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    function normalizeCar(car = {}) {
+      return {
+        id: car.id || crypto.randomUUID(),
+        name: String(car.name || "Default Car").trim() || "Default Car",
+        model: String(car.model || "").trim(),
+        year: String(car.year || "").trim(),
+        currentEngineId: car.currentEngineId || "",
+        notes: String(car.notes || "").trim()
+      };
+    }
+
+    function normalizeEngine(engine = {}) {
+      const type = normalizeEngineType(engine.type || engine.engine);
+      return {
+        id: engine.id || crypto.randomUUID(),
+        name: String(engine.name || "Engine").trim() || "Engine",
+        type,
+        serial: String(engine.serial || "").trim(),
+        lastMaintenance: String(engine.lastMaintenance || "").trim(),
+        notes: String(engine.notes || "").trim()
+      };
+    }
+
+    function normalizeTrack(track = {}) {
+      return {
+        id: track.id || crypto.randomUUID(),
+        name: String(track.name || track.track || "Track").trim() || "Track",
+        location: String(track.location || "").trim(),
+        surface: String(track.surface || "").trim(),
+        length: String(track.length || "").trim(),
+        banking: String(track.banking || "").trim(),
+        layoutNotes: String(track.layoutNotes || "").trim(),
+        lineNotes: String(track.lineNotes || "").trim(),
+        surfaceNotes: String(track.surfaceNotes || "").trim(),
+        tireNotes: String(track.tireNotes || "").trim(),
+        facilityNotes: String(track.facilityNotes || "").trim(),
+        notes: String(track.notes || "").trim()
+      };
+    }
+
+    function normalizeEngineType(type = "") {
+      if (type === "Honda 120/160") return "Honda 120";
+      if (type === "Briggs & Stratton") return "Briggs & Stratton Animal";
+      return GEARBOX_RATIOS[type] ? type : "Honda 120";
+    }
+
+    function sortedTracks() {
+      return [...tracks].sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    function getOrCreateTrack(name = "") {
+      const cleanName = String(name || "").trim();
+      if (!cleanName) return null;
+      const existing = tracks.find((track) => track.name.toLowerCase() === cleanName.toLowerCase());
+      if (existing) return existing;
+      const track = normalizeTrack({ name: cleanName });
+      tracks.push(track);
+      saveTracks();
+      return track;
+    }
+
+    function trackName(trackId, fallback = "") {
+      return tracks.find((track) => track.id === trackId)?.name || fallback || "Untitled track";
+    }
+
+    function baselineKey(carId, trackId, track = "") {
+      const trackPart = trackId || String(track || "").trim().toLowerCase();
+      return carId && trackPart ? `${carId}|${trackPart}` : "";
+    }
+
+    function sessionBaselineKey(session) {
+      return baselineKey(session.carId, session.trackId, session.track);
+    }
+
+    function baselineForSession(session) {
+      return baselines[sessionBaselineKey(session)] || "";
+    }
+
+    function isBaselineSession(session) {
+      return Boolean(session?.id && baselineForSession(session) === session.id);
+    }
+
+    function getOrCreateCar(name = "Default Car") {
+      const cleanName = String(name || "").trim() || "Default Car";
+      const existing = cars.find((car) => car.name.toLowerCase() === cleanName.toLowerCase());
+      if (existing) return existing;
+      const car = normalizeCar({ name: cleanName });
+      cars.push(car);
+      saveCars();
+      return car;
+    }
+
+    function carName(carId) {
+      return cars.find((car) => car.id === carId)?.name || "Unknown car";
+    }
+
+    function carLabel(car) {
+      return [car.name, car.year, car.model].filter(Boolean).join(" - ");
+    }
+
+    function engineName(engineId) {
+      return engines.find((engine) => engine.id === engineId)?.name || "Unknown engine";
+    }
+
+    function engineLabel(engine) {
+      return [engine.name, engine.type, engine.serial].filter(Boolean).join(" - ");
+    }
+
+    function getOrCreateEngine(name = "Primary Engine", type = "Honda 120") {
+      const cleanName = String(name || "").trim() || "Primary Engine";
+      const existing = engines.find((engine) => engine.name.toLowerCase() === cleanName.toLowerCase());
+      if (existing) return existing;
+      const engine = normalizeEngine({ name: cleanName, type });
+      engines.push(engine);
+      saveEngines();
+      return engine;
+    }
+
+    function renderCarOptions(selectedId = $("carId")?.value || "") {
+      if (!cars.length) {
+        $("carId").innerHTML = `<option value="">Add a car in My Garage</option>`;
+        $("carId").value = "";
+        renderSessionFilters();
+        renderCarEngineOptions();
+        renderEngineOptions();
+        return;
+      }
+      const options = sortedCars().map((car) => `<option value="${car.id}">${escapeHtml(carLabel(car))}</option>`).join("");
+      $("carId").innerHTML = options;
+      $("carId").value = cars.some((car) => car.id === selectedId) ? selectedId : sortedCars()[0]?.id || "";
+      renderSessionFilters();
+      renderCarEngineOptions();
+      renderEngineOptions();
+    }
+
+    function renderCarEngineOptions(selectedId = $("carCurrentEngineId")?.value || "") {
+      const options = [`<option value="">No engine installed</option>`, ...sortedEngines().map((engine) => `<option value="${engine.id}">${escapeHtml(engineLabel(engine))}</option>`)].join("");
+      $("carCurrentEngineId").innerHTML = options;
+      $("carCurrentEngineId").value = engines.some((engine) => engine.id === selectedId) ? selectedId : "";
+    }
+
+    function renderTrackOptions() {
+      const selected = $("trackId")?.value || "";
+      if (!tracks.length) {
+        $("trackId").innerHTML = `<option value="">Add a track in Tracks</option>`;
+        $("trackId").value = "";
+        $("track").value = "";
+        return;
+      }
+      $("trackId").innerHTML = sortedTracks().map((track) => `<option value="${track.id}">${escapeHtml(track.name)}</option>`).join("");
+      $("trackId").value = tracks.some((track) => track.id === selected) ? selected : sortedTracks()[0]?.id || "";
+      $("track").value = trackName($("trackId").value, "");
+    }
+
+    function renderPreviousSetupOptions(selectedId = $("previousSetupId")?.value || "") {
+      const options = sortedSessions().map((session) => {
+        const label = `${isBaselineSession(session) ? "Baseline - " : ""}${compareLabel(session)} - ${carName(session.carId)}`;
+        return `<option value="${session.id}" ${session.id === selectedId ? "selected" : ""}>${escapeHtml(label)}</option>`;
+      }).join("");
+      $("previousSetupId").innerHTML = [`<option value="">Choose a previous setup</option>`, options].join("");
+      $("previousSetupId").value = sessions.some((session) => session.id === selectedId) ? selectedId : "";
+      $("startFromPreviousButton").disabled = !$("previousSetupId").value;
+    }
+
+    function renderEngineOptions(selectedId = $("engineId")?.value || "") {
+      if (!engines.length) {
+        $("engineId").innerHTML = `<option value="">Add an engine in My Garage</option>`;
+        $("engineId").value = "";
+        syncEngineTypeFromInstalled();
+        return;
+      }
+      const carId = $("carId")?.value || "";
+      const car = cars.find((item) => item.id === carId);
+      const assigned = engines.find((engine) => engine.id === car?.currentEngineId);
+      const currentSelected = engines.find((engine) => engine.id === selectedId);
+      const available = [assigned || currentSelected || sortedEngines()[0]].filter(Boolean);
+      if (!available.length || !assigned && !currentSelected) {
+        $("engineId").innerHTML = `<option value="">No engine installed for selected car</option>`;
+        $("engineId").value = "";
+        syncEngineTypeFromInstalled();
+        return;
+      }
+      $("engineId").innerHTML = available.map((engine) => `<option value="${engine.id}">${escapeHtml(engineLabel(engine))}</option>`).join("");
+      $("engineId").value = available.some((engine) => engine.id === selectedId) ? selectedId : available[0]?.id || "";
+      syncEngineTypeFromInstalled();
+    }
+
+    function renderSessionFilters() {
+      const selected = $("sessionCarFilter")?.value || "";
+      $("sessionCarFilter").innerHTML = [`<option value="">All Cars</option>`, ...sortedCars().map((car) => `<option value="${car.id}">${escapeHtml(carLabel(car))}</option>`)].join("");
+      $("sessionCarFilter").value = cars.some((car) => car.id === selected) ? selected : "";
+    }
+
+    function addCar() {
+      clearCarForm();
+      setTab("cars");
+      document.querySelector("#carFormHost").appendChild($("carForm"));
+      showCarForm();
+      $("carNameInput").focus({ preventScroll: true });
+    }
+
+    function normalizeSession(session = {}) {
+      const normalized = { ...session };
+      if (normalized.type === "Race") normalized.type = "Main";
+      const hadLegacyCar = Boolean(normalized.car);
+      const hadLegacyEngine = Boolean(normalized.engine || normalized.className);
+      if (!normalized.engine && normalized.className) {
+        normalized.engine = normalized.className;
+      }
+      if ((!normalized.airTemp || !normalized.trackTemp) && normalized.temperature) {
+        const [air, track] = String(normalized.temperature).split("/").map((part) => part.trim());
+        normalized.airTemp = normalized.airTemp || air || "";
+        normalized.trackTemp = normalized.trackTemp || track || "";
+      }
+      if (normalized.track) {
+        const track = normalized.trackId ? tracks.find((item) => item.id === normalized.trackId) || getOrCreateTrack(normalized.track) : getOrCreateTrack(normalized.track);
+        if (track) {
+          normalized.trackId = track.id;
+          normalized.track = track.name;
+        }
+      }
+      normalized.engine = normalizeEngineType(normalized.engine);
+      if (!normalized.carId && hadLegacyCar) normalized.carId = getOrCreateCar(normalized.car).id;
+      if (!normalized.engineId) {
+        const car = cars.find((item) => item.id === normalized.carId);
+        normalized.engineId = car?.currentEngineId || (hadLegacyEngine ? getOrCreateEngine(`${normalized.engine} Primary`, normalized.engine).id : "");
+      }
+      const installedEngine = engines.find((engine) => engine.id === normalized.engineId);
+      if (installedEngine) normalized.engine = installedEngine.type;
+
+      if (!normalized.engineGear && normalized.gear) {
+        const [engine, axle] = String(normalized.gear).split("/").map((part) => part.trim());
+        normalized.engineGear = engine || "";
+        normalized.axleGear = axle || "";
+      }
+
+      if (!normalized.leftWheelbase && normalized.wheelbase) {
+        const [left, right] = String(normalized.wheelbase).split("/").map((part) => part.trim());
+        normalized.leftWheelbase = left || "";
+        normalized.rightWheelbase = right || "";
+      }
+
+      if (!normalized.lfRideHeight && normalized.rideHeight) {
+        const [lf, rf, lr, rr] = String(normalized.rideHeight).split("/").map((part) => part.trim());
+        normalized.lfRideHeight = lf || "";
+        normalized.rfRideHeight = rf || "";
+        normalized.lrRideHeight = lr || "";
+        normalized.rrRideHeight = rr || "";
+      }
+
+      if (!normalized.startPosition && normalized.finish) normalized.endPosition = normalized.finish;
+      if (!isPositionSession(normalized.type)) {
+        normalized.startPosition = "";
+        normalized.endPosition = "";
+      }
+      if (!normalized.gearRatio) normalized.gearRatio = calculateGearRatio(normalized);
+
+      return normalized;
+    }
+
+    function sessionDateTime(session) {
+      if (!session?.date) return new Date(0);
+      return new Date(`${session.date}T${session.sessionTime || "00:00"}`);
+    }
+
+    function isPositionSession(type) {
+      return type === "Heat" || type === "Main";
+    }
+
+    function parseNumber(value) {
+      const parsed = Number(String(value || "").replace(/[^\d.-]/g, ""));
+      return Number.isFinite(parsed) ? parsed : 0;
+    }
+
+    function weightPercentages(session = readVisibleWeights()) {
+      const lf = parseNumber(session.lfWeight);
+      const rf = parseNumber(session.rfWeight);
+      const lr = parseNumber(session.lrWeight);
+      const rr = parseNumber(session.rrWeight);
+      const total = lf + rf + lr + rr;
+      if (!total) {
+        return { front: "", left: "", right: "", rear: "", cross: "" };
+      }
+
+      const percent = (value) => `${((value / total) * 100).toFixed(1)}%`;
+      return {
+        front: percent(lf + rf),
+        left: percent(lf + lr),
+        right: percent(rf + rr),
+        rear: percent(lr + rr),
+        cross: percent(rf + lr)
+      };
+    }
+
+    function readVisibleWeights() {
+      return {
+        lfWeight: $("lfWeight")?.value || "",
+        rfWeight: $("rfWeight")?.value || "",
+        lrWeight: $("lrWeight")?.value || "",
+        rrWeight: $("rrWeight")?.value || ""
+      };
+    }
+
+    function updateWeightCalculations() {
+      const percentages = weightPercentages();
+      $("frontPercent").textContent = percentages.front || "--";
+      $("leftPercent").textContent = percentages.left || "--";
+      $("rightPercent").textContent = percentages.right || "--";
+      $("rearPercent").textContent = percentages.rear || "--";
+      $("crossPercent").textContent = percentages.cross || "--";
+    }
+
+    function formatGear(session) {
+      const gear = [session.engineGear, session.axleGear].filter(Boolean).join(" / ");
+      if (gear && session.gearRatio) return `${gear} (${session.gearRatio})`;
+      return gear || session.gearRatio || "--";
+    }
+
+    function compareLabel(session) {
+      return `${formatDateTime(session)} - ${session.type || "Run"} - ${session.track || "Untitled track"}`;
+    }
+
+    function calculateGearRatio(session = readVisibleGears()) {
+      const engineGear = parseNumber(session.engineGear);
+      const axleGear = parseNumber(session.axleGear);
+      const installedEngine = engines.find((engine) => engine.id === session.engineId);
+      const engineType = installedEngine?.type || session.engine;
+      const gearboxRatio = GEARBOX_RATIOS[engineType] || GEARBOX_RATIOS["Honda 120"];
+      if (!engineGear || !axleGear) return "";
+      return ((axleGear / engineGear) * gearboxRatio).toFixed(2);
+    }
+
+    function readVisibleGears() {
+      return {
+        engine: "Honda 120",
+        engineId: $("engineId")?.value || "",
+        engineGear: $("engineGear")?.value || "",
+        axleGear: $("axleGear")?.value || ""
+      };
+    }
+
+    function updateGearRatio() {
+      const ratio = calculateGearRatio();
+      $("gearRatio").value = ratio;
+      $("gearRatioDisplay").textContent = ratio || "--";
+    }
+
+    function syncEngineTypeFromInstalled() {
+      const installedEngine = engines.find((engine) => engine.id === $("engineId")?.value);
+      updateGearRatio();
+    }
+
+    function valuesDiffer(current, prior) {
+      return String(current || "").trim() !== String(prior || "").trim();
+    }
+
+    function setupDiffItems(current = {}, prior = {}) {
+      const definitions = [
+        ["Track", (session) => trackName(session.trackId, session.track)],
+        ["Installed Engine", (session) => engineName(session.engineId)],
+        ["LF PSI", "lfPsi"],
+        ["RF PSI", "rfPsi"],
+        ["LR PSI", "lrPsi"],
+        ["RR PSI", "rrPsi"],
+        ["LF Spring", "lfSpringRate"],
+        ["RF Spring", "rfSpringRate"],
+        ["LR Spring", "lrSpringRate"],
+        ["RR Spring", "rrSpringRate"],
+        ["LF Shock", "lfShockValving"],
+        ["RF Shock", "rfShockValving"],
+        ["LR Shock", "lrShockValving"],
+        ["RR Shock", "rrShockValving"],
+        ["Stagger", "stagger"],
+        ["LF Weight", "lfWeight"],
+        ["RF Weight", "rfWeight"],
+        ["LR Weight", "lrWeight"],
+        ["RR Weight", "rrWeight"],
+        ["LF Ride Height", "lfRideHeight"],
+        ["RF Ride Height", "rfRideHeight"],
+        ["LR Ride Height", "lrRideHeight"],
+        ["RR Ride Height", "rrRideHeight"],
+        ["Camber", "camber"],
+        ["Caster", "caster"],
+        ["Left Wheelbase", "leftWheelbase"],
+        ["Right Wheelbase", "rightWheelbase"],
+        ["Engine Gear", "engineGear"],
+        ["Axle Gear", "axleGear"],
+        ["Gear Ratio", "gearRatio"],
+        ["Tire Notes", "tireNotes"],
+        ["Changes", "changes"]
+      ];
+
+      return definitions.map(([label, accessor]) => {
+        const currentValue = typeof accessor === "function" ? accessor(current) : current[accessor];
+        const priorValue = typeof accessor === "function" ? accessor(prior) : prior[accessor];
+        return { label, current: currentValue || "", prior: priorValue || "" };
+      }).filter((item) => valuesDiffer(item.current, item.prior));
+    }
+
+    function diffValueText(value) {
+      return String(value || "").trim() || "--";
+    }
+
+    function renderSetupDiffSummary(current, prior) {
+      const changes = setupDiffItems(current, prior);
+      if (!changes.length) {
+        return `
+          <div class="diff-summary">
+            <h3>Setup Diff Summary</h3>
+            <p>No setup changes found between these sessions.</p>
+          </div>
+        `;
+      }
+
+      const visibleChanges = changes.slice(0, 10);
+      const remaining = changes.length - visibleChanges.length;
+      return `
+        <div class="diff-summary">
+          <h3>Setup Diff Summary</h3>
+          <p>${changes.length} ${changes.length === 1 ? "setup change" : "setup changes"} from Compare With to Current Run.</p>
+          <ul class="diff-list">
+            ${visibleChanges.map((change) => `
+              <li>${escapeHtml(change.label)}: ${escapeHtml(diffValueText(change.prior))} -> ${escapeHtml(diffValueText(change.current))}</li>
+            `).join("")}
+            ${remaining > 0 ? `<li>+${remaining} more in the detail rows</li>` : ""}
+          </ul>
+        </div>
+      `;
+    }
+
+    function actionIcon(name) {
+      const icons = {
+        edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+        copy: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="8" width="12" height="12" rx="2"/><path d="M4 16V6a2 2 0 0 1 2-2h10"/></svg>',
+        star: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 2.9 5.9 6.5.9-4.7 4.6 1.1 6.5L12 17.8 6.2 20.9l1.1-6.5-4.7-4.6 6.5-.9Z"/></svg>',
+        trash: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v5M14 11v5"/></svg>'
+      };
+      return icons[name] || "";
+    }
+
+    function updatePositionVisibility() {
+      const showPositions = isPositionSession($("type").value);
+      $("startPositionField").classList.toggle("hidden", !showPositions);
+      $("endPositionField").classList.toggle("hidden", !showPositions);
+      if (!showPositions) {
+        $("startPosition").value = "";
+        $("endPosition").value = "";
+      }
+    }
+
+    function cleanNumberValue(value, allowDecimal) {
+      if (allowDecimal) {
+        const [whole, ...rest] = String(value).replace(/,/g, ".").replace(/[^\d.]/g, "").split(".");
+        return `${whole}${rest.length ? `.${rest.join("")}` : ""}`;
+      }
+      return String(value).replace(/\D/g, "");
+    }
+
+    function clampNumberInput(input) {
+      if (input.value === "") return;
+      const value = Number(input.value);
+      if (!Number.isFinite(value)) {
+        input.value = "";
+        return;
+      }
+      const min = input.min === "" ? null : Number(input.min);
+      const max = input.max === "" ? null : Number(input.max);
+      if (min !== null && value < min) input.value = min;
+      if (max !== null && value > max) input.value = max;
+    }
+
+    function constrainNumberInput(id, allowDecimal) {
+      const input = $(id);
+      if (!input) return;
+      input.addEventListener("beforeinput", (event) => {
+        if (!event.data) return;
+        if (/[\deE+\-.,]/.test(event.data) && !/[eE+\-]/.test(event.data)) return;
+        event.preventDefault();
+      });
+      input.addEventListener("input", () => {
+        const cleaned = cleanNumberValue(input.value, allowDecimal);
+        if (input.value !== cleaned) input.value = cleaned;
+      });
+      input.addEventListener("change", () => clampNumberInput(input));
+    }
+
+    function setupNumericInputs() {
+      decimalNumericFields.forEach((id) => constrainNumberInput(id, true));
+      integerNumericFields.forEach((id) => constrainNumberInput(id, false));
+    }
+
+    function setupCollapsibleSections() {
+      document.querySelectorAll("#setupForm > fieldset").forEach((fieldset) => {
+        const legend = fieldset.querySelector("legend");
+        const title = legend?.textContent.trim() || "Section";
+        legend?.remove();
+        const section = document.createElement("details");
+        section.className = "form-section";
+        section.open = title !== "Start From Previous Setup";
+        const summary = document.createElement("summary");
+        summary.textContent = title;
+        fieldset.before(section);
+        section.append(summary, fieldset);
+      });
+    }
+
+    function render() {
+      renderCarOptions();
+      renderTrackOptions();
+      renderPreviousSetupOptions();
+      renderHistory();
+      renderCars();
+      renderEngines();
+      renderTracks();
+      renderCompare();
+    }
+
+    function setInitialTab() {
+      if (!cars.length || !engines.length) {
+        setTab("cars");
+        return;
+      }
+      setTab(tracks.length ? "sessions" : "tracks");
+    }
+
+    function renderHistory() {
+      const term = $("searchInput").value.trim().toLowerCase();
+      const carFilter = $("sessionCarFilter").value;
+      const typeFilter = $("sessionTypeFilter").value;
+      const list = $("sessionList");
+      const filtered = sortedSessions().filter((session) => {
+        const haystack = `${fields.map((field) => session[field]).join(" ")} ${carName(session.carId)} ${engineName(session.engineId)}`.toLowerCase();
+        return haystack.includes(term) &&
+          (!carFilter || session.carId === carFilter) &&
+          (!typeFilter || session.type === typeFilter);
+      });
+
+      if (!filtered.length) {
+        list.innerHTML = `<div class="empty">${sessions.length ? "No runs match that search." : "No setup entries yet. Add a sample or log your first run."}</div>`;
+        return;
+      }
+
+      list.innerHTML = filtered.map((session) => {
+        const baseline = isBaselineSession(session);
+        return `
+        <details class="session-card session-row ${escapeHtml(session.type || "").toLowerCase()} ${baseline ? "baseline" : ""}">
+          <summary>
+            <div class="session-line">
+              <strong>${escapeHtml(formatDateShort(session))}</strong>
+              <span>${escapeHtml(session.type || "Run")}</span>
+              <span>${escapeHtml(carName(session.carId))}</span>
+              <span>${escapeHtml(trackName(session.trackId, session.track))}${baseline ? " · Baseline" : ""}</span>
+            </div>
+            <div class="session-metrics">
+              <span class="metric-pill">Lap ${escapeHtml(session.lapTime || "--")}</span>
+              <span class="metric-pill">${escapeHtml(formatGear(session))}</span>
+            </div>
+          </summary>
+          <div class="session-row-body">
+            <p class="meta">${formatDateTime(session)} · ${escapeHtml(engineName(session.engineId))} · ${escapeHtml(session.driver || "Driver")}</p>
+            <div class="card-grid">
+              <div class="mini"><span>Cross</span><strong>${escapeHtml(weightPercentages(session).cross || "--")}</strong></div>
+              <div class="mini"><span>Stagger</span><strong>${escapeHtml(session.stagger || "--")}</strong></div>
+              <div class="mini"><span>RPM</span><strong>${escapeHtml(session.averageRpm || "--")}</strong></div>
+              <div class="mini"><span>Drops</span><strong>${escapeHtml(session.averageDrops || "--")}</strong></div>
+            </div>
+            <p class="meta">${escapeHtml(session.handling || session.changes || "No handling notes yet.")}</p>
+            <div class="card-actions">
+              <button class="small-button" type="button" data-action="edit" data-id="${session.id}" aria-label="Edit session" title="Edit session">${actionIcon("edit")}</button>
+              <button class="small-button" type="button" data-action="duplicate" data-id="${session.id}" aria-label="Duplicate session" title="Duplicate session">${actionIcon("copy")}</button>
+              <button class="small-button ${baseline ? "active" : ""}" type="button" data-action="baseline" data-id="${session.id}" aria-label="${baseline ? "Baseline setup" : "Set baseline"}" title="${baseline ? "Baseline setup" : "Set baseline"}">${actionIcon("star")}</button>
+              <button class="small-button" type="button" data-action="delete" data-id="${session.id}" aria-label="Delete session" title="Delete session">${actionIcon("trash")}</button>
+            </div>
+          </div>
+        </details>
+      `;
+      }).join("");
+    }
+
+    function renderCars() {
+      const list = $("carList");
+      if (!cars.length) {
+        list.innerHTML = `<div class="empty">No cars yet. Add one before logging sessions.</div>`;
+        return;
+      }
+
+      list.innerHTML = sortedCars().map((car) => {
+        const runCount = sessions.filter((session) => session.carId === car.id).length;
+        return `
+          <article class="session-card" data-car-card="${car.id}">
+            <div class="session-head">
+              <div>
+                <h2 class="session-title">${escapeHtml(car.name)}</h2>
+                <p class="meta">${escapeHtml([car.year, car.model].filter(Boolean).join(" · ") || "No model details")} · ${escapeHtml(car.currentEngineId ? engineName(car.currentEngineId) : "No engine installed")} · ${runCount} ${runCount === 1 ? "session" : "sessions"}</p>
+              </div>
+              <span class="pill">Car</span>
+            </div>
+            <p class="meta">${escapeHtml(car.notes || "No notes yet.")}</p>
+            <div class="card-actions">
+              <button class="small-button icon-only" type="button" data-car-action="edit" data-id="${car.id}" aria-label="Edit car" title="Edit car">${actionIcon("edit")}</button>
+              <button class="small-button icon-only" type="button" data-car-action="delete" data-id="${car.id}" aria-label="Remove car" title="Remove car">${actionIcon("trash")}</button>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderEngines() {
+      const list = $("engineList");
+      if (!engines.length) {
+        list.innerHTML = `<div class="empty">No engines yet. Add one before logging sessions.</div>`;
+        return;
+      }
+
+      list.innerHTML = sortedEngines().map((engine) => {
+        const runCount = sessions.filter((session) => session.engineId === engine.id).length;
+        const installedCar = cars.find((car) => car.currentEngineId === engine.id);
+        return `
+          <article class="session-card" data-engine-card="${engine.id}">
+            <div class="session-head">
+              <div>
+                <h2 class="session-title">${escapeHtml(engine.name)}</h2>
+                <p class="meta">${escapeHtml(engine.type)} · ${escapeHtml(installedCar ? `Installed in ${installedCar.name}` : "Not installed")} · ${runCount} ${runCount === 1 ? "session" : "sessions"}</p>
+              </div>
+              <span class="pill">Engine</span>
+            </div>
+            <div class="engine-details meta">
+              <p><strong>ID:</strong> ${escapeHtml(engine.serial || "--")}</p>
+              <p><strong>Last Maintenance:</strong> ${escapeHtml(engine.lastMaintenance ? formatDate(engine.lastMaintenance) : "--")}</p>
+              <p><strong>Notes:</strong> ${escapeHtml(engine.notes || "No notes yet.")}</p>
+            </div>
+            <div class="card-actions">
+              <button class="small-button icon-only" type="button" data-engine-action="edit" data-id="${engine.id}" aria-label="Edit engine" title="Edit engine">${actionIcon("edit")}</button>
+              <button class="small-button icon-only" type="button" data-engine-action="delete" data-id="${engine.id}" aria-label="Remove engine" title="Remove engine">${actionIcon("trash")}</button>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderTracks() {
+      const list = $("trackList");
+      if (!tracks.length) {
+        list.innerHTML = `<div class="empty">No tracks yet. Add one or log a session with a new track.</div>`;
+        return;
+      }
+
+      list.innerHTML = sortedTracks().map((track) => {
+        const runCount = sessions.filter((session) => session.trackId === track.id || session.track === track.name).length;
+        const details = [
+          track.location,
+          track.surface,
+          track.length,
+          track.banking
+        ].filter(Boolean).join(" · ");
+        const notes = [
+          ["Layout", track.layoutNotes],
+          ["Line", track.lineNotes],
+          ["Surface", track.surfaceNotes],
+          ["Tires/Stagger", track.tireNotes],
+          ["Facility", track.facilityNotes],
+          ["Notes", track.notes]
+        ].filter(([, value]) => value);
+        return `
+          <article class="session-card" data-track-card="${track.id}">
+            <div class="session-head">
+              <div>
+                <h2 class="session-title">${escapeHtml(track.name)}</h2>
+                <p class="meta">${escapeHtml(details || "No profile details")} · ${runCount} ${runCount === 1 ? "session" : "sessions"}</p>
+              </div>
+              <span class="pill">Track</span>
+            </div>
+            <div class="engine-details meta">
+              ${notes.length ? notes.map(([label, value]) => `<p><strong>${escapeHtml(label)}:</strong> ${escapeHtml(value)}</p>`).join("") : `<p>No notes yet.</p>`}
+            </div>
+            <div class="card-actions">
+              <button class="small-button icon-only" type="button" data-track-action="edit" data-id="${track.id}" aria-label="Edit track" title="Edit track">${actionIcon("edit")}</button>
+              <button class="small-button icon-only" type="button" data-track-action="delete" data-id="${track.id}" aria-label="Remove track" title="Remove track">${actionIcon("trash")}</button>
+            </div>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function renderCompare() {
+      const box = $("compareBox");
+      const carsWithRuns = sortedCars().filter((car) => sessions.some((session) => session.carId === car.id));
+      if (!carsWithRuns.length) {
+        box.innerHTML = `
+          <div class="compare-card">
+            <h2 class="session-title">Compare Runs</h2>
+            <p class="meta">Add setup entries for a car to compare runs.</p>
+          </div>
+        `;
+        return;
+      }
+
+      if (!carsWithRuns.some((car) => car.id === compareCarId)) compareCarId = carsWithRuns[0].id;
+      const carRuns = sortedSessions().filter((session) => session.carId === compareCarId);
+      if (!carRuns.some((session) => session.id === compareCurrentId)) compareCurrentId = carRuns[0]?.id || "";
+      let currentIndex = carRuns.findIndex((session) => session.id === compareCurrentId);
+      if (currentIndex < 0) currentIndex = 0;
+      const currentRun = carRuns[currentIndex];
+      const comparisonRuns = carRuns.filter((session) => session.id !== compareCurrentId);
+      const baselineId = currentRun ? baselineForSession(currentRun) : "";
+      if (!comparisonRuns.some((session) => session.id === comparePreviousId)) {
+        comparePreviousId = comparisonRuns.some((session) => session.id === baselineId) ? baselineId : carRuns[currentIndex + 1]?.id || comparisonRuns[0]?.id || "";
+      }
+
+      const latest = carRuns.find((session) => session.id === compareCurrentId);
+      const previous = carRuns.find((session) => session.id === comparePreviousId);
+      const baselineSession = baselineId ? carRuns.find((session) => session.id === baselineId) : null;
+      const compareHint = !latest ? "" :
+        baselineSession && previous?.id === baselineSession.id ? `Comparing this run against the baseline for ${trackName(latest.trackId, latest.track)}.` :
+        baselineSession && latest.id === baselineSession.id ? "The current run is the baseline. Choose another Current Run to compare against it." :
+        baselineSession ? `A baseline exists for ${trackName(latest.trackId, latest.track)}. Choose the Baseline option in Compare With to use it.` :
+        `No baseline is set for ${trackName(latest.trackId, latest.track)} with this car yet. Use the star button on a session to set one.`;
+      const controls = `
+        <div class="compare-controls">
+          <label class="wide">Car
+            <select id="compareCar">
+              ${carsWithRuns.map((car) => `<option value="${car.id}" ${car.id === compareCarId ? "selected" : ""}>${escapeHtml(car.name)}</option>`).join("")}
+            </select>
+          </label>
+          <label>Current Run
+            <select id="compareCurrent">
+              ${carRuns.map((session) => `<option value="${session.id}" ${session.id === compareCurrentId ? "selected" : ""}>${escapeHtml(`${isBaselineSession(session) ? "Baseline - " : ""}${compareLabel(session)}`)}</option>`).join("")}
+            </select>
+          </label>
+          <label>Compare With
+            <select id="comparePrevious">
+              ${comparisonRuns.map((session) => `<option value="${session.id}" ${session.id === comparePreviousId ? "selected" : ""}>${escapeHtml(`${isBaselineSession(session) ? "Baseline - " : ""}${compareLabel(session)}`)}</option>`).join("")}
+            </select>
+          </label>
+          <p class="compare-hint">${escapeHtml(compareHint)}</p>
+        </div>
+      `;
+
+      if (!latest || !previous) {
+        box.innerHTML = `
+          <div class="compare-card">
+            <h2 class="session-title">Compare Runs</h2>
+            ${controls}
+            <p class="meta">This car needs at least two runs before comparison is useful.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const rows = [
+        ["Track", latest.track, previous.track],
+        ["Engine", engineName(latest.engineId), engineName(previous.engineId)],
+        ["Best Lap", latest.lapTime, previous.lapTime],
+        ["LF/RF PSI", `${latest.lfPsi || "--"} / ${latest.rfPsi || "--"}`, `${previous.lfPsi || "--"} / ${previous.rfPsi || "--"}`],
+        ["LR/RR PSI", `${latest.lrPsi || "--"} / ${latest.rrPsi || "--"}`, `${previous.lrPsi || "--"} / ${previous.rrPsi || "--"}`],
+        ["Springs LF/RF", `${latest.lfSpringRate || "--"} / ${latest.rfSpringRate || "--"}`, `${previous.lfSpringRate || "--"} / ${previous.rfSpringRate || "--"}`],
+        ["Shocks LF/RF", `${latest.lfShockValving || "--"} / ${latest.rfShockValving || "--"}`, `${previous.lfShockValving || "--"} / ${previous.rfShockValving || "--"}`],
+        ["Stagger", latest.stagger, previous.stagger],
+        ["Cross", weightPercentages(latest).cross, weightPercentages(previous).cross],
+        ["Gear", formatGear(latest), formatGear(previous)],
+        ["Avg RPM", latest.averageRpm, previous.averageRpm],
+        ["Avg Drops", latest.averageDrops, previous.averageDrops],
+        ["Laps", latest.totalLaps, previous.totalLaps],
+        ["Handling", latest.handling, previous.handling]
+      ];
+      if (isPositionSession(latest.type) || isPositionSession(previous.type)) {
+        rows.splice(rows.length - 1, 0, ["Start", latest.startPosition, previous.startPosition]);
+        rows.splice(rows.length - 1, 0, ["Finish", latest.endPosition, previous.endPosition]);
+      }
+
+      box.innerHTML = `
+        <div class="compare-card">
+          <h2 class="session-title">${escapeHtml(carName(compareCarId))} Comparison</h2>
+          ${controls}
+          <p class="meta">${formatDateTime(latest)} compared with ${formatDateTime(previous)}</p>
+          ${renderSetupDiffSummary(latest, previous)}
+          ${rows.map(([label, current, prior]) => `
+            <div class="compare-row ${valuesDiffer(current, prior) ? "changed" : ""}">
+              <span>${escapeHtml(label)}</span>
+              <strong>${escapeHtml(current || "--")}</strong>
+              <strong>${escapeHtml(prior || "--")}</strong>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    function fillForm(session = {}) {
+      $("entryId").value = session.id || "";
+      session = normalizeSession(session);
+      renderEngineOptions(session.engineId);
+      fields.forEach((field) => {
+        $(field).value = session[field] || "";
+      });
+      renderTrackOptions();
+      $("trackId").value = tracks.some((track) => track.id === session.trackId) ? session.trackId : "";
+      $("track").value = trackName($("trackId").value, session.track);
+      renderEngineOptions(session.engineId);
+      if (!$("date").value) $("date").value = localDateValue();
+      updateWeightCalculations();
+      updateGearRatio();
+      updatePositionVisibility();
+      saveSessionDraft();
+    }
+
+    function readForm() {
+      syncEngineTypeFromInstalled();
+      updateGearRatio();
+      const session = {
+        id: $("entryId").value || crypto.randomUUID(),
+        createdAt: new Date().toISOString()
+      };
+      fields.forEach((field) => {
+        session[field] = $(field).value.trim();
+      });
+      session.trackId = $("trackId").value;
+      session.track = trackName(session.trackId, "");
+      return normalizeSession(session);
+    }
+
+    function draftValues() {
+      const draft = {
+        entryId: $("entryId").value || "",
+        savedAt: new Date().toISOString()
+      };
+      fields.forEach((field) => {
+        draft[field] = $(field).value || "";
+      });
+      return draft;
+    }
+
+    function isMeaningfulDraft(draft = {}) {
+      const ignored = new Set(["savedAt", "date", "sessionTime", "type", "gearRatio"]);
+      return Object.entries(draft).some(([key, value]) => !ignored.has(key) && String(value || "").trim());
+    }
+
+    function saveSessionDraft() {
+      if (suppressDraftSave) return;
+      const draft = draftValues();
+      if (isMeaningfulDraft(draft)) {
+        localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
+      } else {
+        localStorage.removeItem(DRAFT_KEY);
+      }
+    }
+
+    function clearSessionDraft() {
+      localStorage.removeItem(DRAFT_KEY);
+    }
+
+    function restoreSessionDraft() {
+      try {
+        const draft = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null");
+        if (!isMeaningfulDraft(draft)) return false;
+        suppressDraftSave = true;
+        $("entryId").value = draft.entryId || "";
+        fields.forEach((field) => {
+          $(field).value = draft[field] || "";
+        });
+        renderTrackOptions();
+        $("trackId").value = tracks.some((track) => track.id === draft.trackId) ? draft.trackId : "";
+        $("track").value = trackName($("trackId").value, draft.track);
+        renderEngineOptions(draft.engineId || "");
+        updateWeightCalculations();
+        updateGearRatio();
+        updatePositionVisibility();
+        suppressDraftSave = false;
+        showToast("Restored unsaved setup draft.");
+        return true;
+      } catch {
+        clearSessionDraft();
+        suppressDraftSave = false;
+        return false;
+      }
+    }
+
+    function clearForm({ clearDraft = true } = {}) {
+      suppressDraftSave = true;
+      $("setupForm").reset();
+      $("entryId").value = "";
+      $("trackId").value = "";
+      $("date").value = localDateValue();
+      $("sessionTime").value = new Date().toTimeString().slice(0, 5);
+      updateWeightCalculations();
+      updateGearRatio();
+      updatePositionVisibility();
+      suppressDraftSave = false;
+      if (clearDraft) clearSessionDraft();
+    }
+
+    function fillCarForm(car = {}) {
+      $("carEditId").value = car.id || "";
+      $("carNameInput").value = car.name || "";
+      $("carModel").value = car.model || "";
+      $("carYear").value = car.year || "";
+      renderCarEngineOptions(car.currentEngineId || "");
+      $("carNotes").value = car.notes || "";
+    }
+
+    function readCarForm() {
+      return normalizeCar({
+        id: $("carEditId").value || crypto.randomUUID(),
+        name: $("carNameInput").value,
+        model: $("carModel").value,
+        year: $("carYear").value,
+        currentEngineId: $("carCurrentEngineId").value,
+        notes: $("carNotes").value
+      });
+    }
+
+    function clearCarForm() {
+      if ($("carFormHost") && $("carForm")) $("carFormHost").appendChild($("carForm"));
+      $("carForm").reset();
+      $("carEditId").value = "";
+      $("carForm").classList.add("hidden");
+    }
+
+    function showCarForm() {
+      $("carForm").classList.remove("hidden");
+    }
+
+    function editCar(id) {
+      const car = cars.find((item) => item.id === id);
+      if (!car) return;
+      fillCarForm(car);
+      setTab("cars");
+      document.querySelector(`[data-car-card="${id}"]`)?.after($("carForm"));
+      showCarForm();
+      $("carNameInput").focus({ preventScroll: true });
+    }
+
+    function deleteCar(id) {
+      const car = cars.find((item) => item.id === id);
+      if (!car) return;
+      const runCount = sessions.filter((session) => session.carId === id).length;
+      if (runCount) {
+        showToast("Cars with sessions cannot be removed.");
+        return;
+      }
+      if (!confirm(`Remove ${car.name}?`)) return;
+      cars = cars.filter((item) => item.id !== id);
+      saveCars();
+      clearCarForm();
+      render();
+      showToast("Car removed.");
+    }
+
+    function addEngine() {
+      clearEngineForm();
+      setTab("cars");
+      document.querySelector("#engineFormHost").appendChild($("engineForm"));
+      showEngineForm();
+      $("engineNameInput").focus({ preventScroll: true });
+    }
+
+    function fillEngineForm(engine = {}) {
+      $("engineEditId").value = engine.id || "";
+      $("engineNameInput").value = engine.name || "";
+      $("engineTypeInput").value = engine.type || "Honda 120";
+      $("engineSerial").value = engine.serial || "";
+      $("engineLastMaintenance").value = engine.lastMaintenance || "";
+      $("engineNotes").value = engine.notes || "";
+    }
+
+    function readEngineForm() {
+      return normalizeEngine({
+        id: $("engineEditId").value || crypto.randomUUID(),
+        name: $("engineNameInput").value,
+        type: $("engineTypeInput").value,
+        serial: $("engineSerial").value,
+        lastMaintenance: $("engineLastMaintenance").value,
+        notes: $("engineNotes").value
+      });
+    }
+
+    function clearEngineForm() {
+      if ($("engineFormHost") && $("engineForm")) $("engineFormHost").appendChild($("engineForm"));
+      $("engineForm").reset();
+      $("engineEditId").value = "";
+      $("engineForm").classList.add("hidden");
+    }
+
+    function showEngineForm() {
+      $("engineForm").classList.remove("hidden");
+    }
+
+    function editEngine(id) {
+      const engine = engines.find((item) => item.id === id);
+      if (!engine) return;
+      fillEngineForm(engine);
+      setTab("cars");
+      document.querySelector(`[data-engine-card="${id}"]`)?.after($("engineForm"));
+      showEngineForm();
+      $("engineNameInput").focus({ preventScroll: true });
+    }
+
+    function selectEngine(id) {
+      const engine = engines.find((item) => item.id === id);
+      if (!engine) return;
+      renderEngineOptions(id);
+      setTab("sessions");
+      $("engineId").focus({ preventScroll: true });
+    }
+
+    function deleteEngine(id) {
+      const engine = engines.find((item) => item.id === id);
+      if (!engine) return;
+      const runCount = sessions.filter((session) => session.engineId === id).length;
+      const installedCar = cars.find((car) => car.currentEngineId === id);
+      if (installedCar) {
+        showToast(`Remove ${engine.name} from ${installedCar.name} before deleting it.`);
+        return;
+      }
+      if (runCount) {
+        showToast("Engines with sessions cannot be removed.");
+        return;
+      }
+      if (!confirm(`Remove ${engine.name}?`)) return;
+      engines = engines.filter((item) => item.id !== id);
+      saveEngines();
+      clearEngineForm();
+      render();
+      showToast("Engine removed.");
+    }
+
+    function addTrack() {
+      clearTrackForm();
+      setTab("tracks");
+      document.querySelector("#trackFormHost").appendChild($("trackForm"));
+      showTrackForm();
+      $("trackNameInput").focus({ preventScroll: true });
+    }
+
+    function fillTrackForm(track = {}) {
+      $("trackEditId").value = track.id || "";
+      $("trackNameInput").value = track.name || "";
+      $("trackLocation").value = track.location || "";
+      $("trackSurface").value = track.surface || "";
+      $("trackLength").value = track.length || "";
+      $("trackBanking").value = track.banking || "";
+      $("trackLayoutNotes").value = track.layoutNotes || "";
+      $("trackLineNotes").value = track.lineNotes || "";
+      $("trackSurfaceNotes").value = track.surfaceNotes || "";
+      $("trackTireNotes").value = track.tireNotes || "";
+      $("trackFacilityNotes").value = track.facilityNotes || "";
+      $("trackNotes").value = track.notes || "";
+    }
+
+    function readTrackForm() {
+      return normalizeTrack({
+        id: $("trackEditId").value || crypto.randomUUID(),
+        name: $("trackNameInput").value,
+        location: $("trackLocation").value,
+        surface: $("trackSurface").value,
+        length: $("trackLength").value,
+        banking: $("trackBanking").value,
+        layoutNotes: $("trackLayoutNotes").value,
+        lineNotes: $("trackLineNotes").value,
+        surfaceNotes: $("trackSurfaceNotes").value,
+        tireNotes: $("trackTireNotes").value,
+        facilityNotes: $("trackFacilityNotes").value,
+        notes: $("trackNotes").value
+      });
+    }
+
+    function clearTrackForm() {
+      if ($("trackFormHost") && $("trackForm")) $("trackFormHost").appendChild($("trackForm"));
+      $("trackForm").reset();
+      $("trackEditId").value = "";
+      $("trackForm").classList.add("hidden");
+    }
+
+    function showTrackForm() {
+      $("trackForm").classList.remove("hidden");
+    }
+
+    function editTrack(id) {
+      const track = tracks.find((item) => item.id === id);
+      if (!track) return;
+      fillTrackForm(track);
+      setTab("tracks");
+      document.querySelector(`[data-track-card="${id}"]`)?.after($("trackForm"));
+      showTrackForm();
+      $("trackNameInput").focus({ preventScroll: true });
+    }
+
+    function deleteTrack(id) {
+      const track = tracks.find((item) => item.id === id);
+      if (!track) return;
+      const runCount = sessions.filter((session) => session.trackId === id || session.track === track.name).length;
+      if (runCount) {
+        showToast("Tracks with sessions cannot be removed.");
+        return;
+      }
+      if (!confirm(`Remove ${track.name}?`)) return;
+      tracks = tracks.filter((item) => item.id !== id);
+      saveTracks();
+      clearTrackForm();
+      render();
+      showToast("Track removed.");
+    }
+
+    function editSession(id) {
+      const session = sessions.find((item) => item.id === id);
+      if (!session) return;
+      fillForm(session);
+      setTab("sessions");
+      $("trackId").focus({ preventScroll: true });
+    }
+
+    function duplicateSession(id) {
+      const session = sessions.find((item) => item.id === id);
+      if (!session) return;
+      startFromSession(session);
+    }
+
+    function startFromSession(session) {
+      fillForm({
+        ...session,
+        id: "",
+        date: localDateValue(),
+        sessionTime: new Date().toTimeString().slice(0, 5),
+        type: "Practice",
+        lapTime: "",
+        startPosition: "",
+        endPosition: "",
+        averageRpm: "",
+        averageDrops: "",
+        totalLaps: "",
+        handling: "",
+        changes: "",
+        nextTime: session.nextTime || ""
+      });
+      setTab("sessions");
+      $("trackId").focus({ preventScroll: true });
+      showToast("Copied setup into a new entry.");
+    }
+
+    function startFromPreviousSetup() {
+      const session = sessions.find((item) => item.id === $("previousSetupId").value);
+      if (!session) return showToast("Choose a previous setup first.");
+      startFromSession(session);
+    }
+
+    function setBaselineSession(id) {
+      const session = sessions.find((item) => item.id === id);
+      if (!session) return;
+      const key = sessionBaselineKey(session);
+      if (!key) return showToast("Choose a car and track before setting a baseline.");
+      baselines[key] = id;
+      saveBaselines();
+      renderHistory();
+      renderCompare();
+      showToast("Baseline setup saved for this car and track.");
+    }
+
+    function deleteSession(id) {
+      const session = sessions.find((item) => item.id === id);
+      if (!session) return;
+      const label = `${session.track || "this setup"} on ${formatDate(session.date)}`;
+      if (!confirm(`Delete ${label}?`)) return;
+      sessions = sessions.filter((item) => item.id !== id);
+      Object.keys(baselines).forEach((key) => {
+        if (baselines[key] === id) delete baselines[key];
+      });
+      saveSessions();
+      saveBaselines();
+      render();
+      showToast("Setup deleted.");
+    }
+
+    function seedSamples() {
+      if (sessions.length && !confirm("Add sample entries to your existing log?")) return;
+      const carSeeds = [
+        { name: "Blue 7", model: "Nervo Coggin", year: "2024", notes: "Baseline Honda car. Good neutral reference setup.", driver: "Riley", engine: "Honda 120", primaryEngine: "Honda A", backupEngine: "Honda Backup" },
+        { name: "Red 21", model: "Bullrider", year: "2022", notes: "Backup chassis. Likes a little more stagger on hot tracks.", driver: "Avery", engine: "Briggs & Stratton Animal", primaryEngine: "Briggs Red", backupEngine: "Briggs Spare" },
+        { name: "Silver 4", model: "Stanley", year: "2023", notes: "Newer DECO package. Watch entry balance with fresh right sides.", driver: "Jordan", engine: "DECO", primaryEngine: "DECO Silver", backupEngine: "DECO Backup" }
+      ];
+      const tracks = ["River Bend Speedway", "Canyon Rim QMA", "Oak Valley Raceway", "Blue Mountain"];
+      const runTypes = ["Practice", "Qualifying", "Heat", "Main"];
+      const sample = [];
+
+      carSeeds.forEach((seed, carIndex) => {
+        const car = getOrCreateCar(seed.name);
+        car.model = seed.model;
+        car.year = seed.year;
+        car.notes = seed.notes;
+        const primaryEngine = getOrCreateEngine(seed.primaryEngine, seed.engine);
+        primaryEngine.serial = `${seed.name.replaceAll(" ", "")}-P`;
+        primaryEngine.lastMaintenance = "2026-05-20";
+        primaryEngine.notes = "Normal race engine. Oil changed after every race weekend.";
+        const backupEngine = getOrCreateEngine(seed.backupEngine, seed.engine);
+        backupEngine.serial = `${seed.name.replaceAll(" ", "")}-B`;
+        backupEngine.lastMaintenance = "2026-04-28";
+        backupEngine.notes = "Backup engine installed when diagnosing primary package.";
+        car.currentEngineId = primaryEngine.id;
+
+        runTypes.forEach((type, runIndex) => {
+          const installedEngine = runIndex === 2 ? backupEngine : primaryEngine;
+          const date = new Date();
+          date.setDate(date.getDate() - (16 - carIndex * 2 - runIndex * 3));
+          const engineGear = 35 + carIndex;
+          const axleGear = 28 + runIndex + carIndex;
+          const ratio = ((axleGear / engineGear) * (GEARBOX_RATIOS[installedEngine.type] || 6.14)).toFixed(2);
+          const isRace = isPositionSession(type);
+          const track = getOrCreateTrack(tracks[(carIndex + runIndex) % tracks.length]);
+          track.location = ["Riverside, CA", "Mesa, AZ", "Oak Valley, CA", "Bend, OR"][(carIndex + runIndex) % tracks.length];
+          track.surface = ["Dirt", "Asphalt", "Concrete", "Dirt"][(carIndex + runIndex) % tracks.length];
+          track.length = ["1/20 mile", "880 ft", "1/16 mile", "1/20 mile"][(carIndex + runIndex) % tracks.length];
+          track.banking = ["Slight", "Medium", "Flat", "Slight"][(carIndex + runIndex) % tracks.length];
+          track.layoutNotes ||= "Tight entry with a longer exit radius.";
+          track.lineNotes ||= "Bottom is quickest early; middle comes in after heats.";
+          track.surfaceNotes ||= "Track tends to slick off on exit as the day warms up.";
+          track.tireNotes ||= "Watch right-side growth and stagger after longer runs.";
+          track.facilityNotes ||= "Scales near tech. Staging backs up before mains.";
+          const sampleSession = {
+          id: crypto.randomUUID(),
+          createdAt: new Date(Date.now() + sample.length * 1000).toISOString(),
+          track: track.name,
+          trackId: track.id,
+          date: localDateValue(date),
+          sessionTime: `${10 + runIndex}:${runIndex % 2 ? "45" : "15"}`,
+          type,
+          engine: installedEngine.type,
+          engineId: installedEngine.id,
+          driver: seed.driver,
+          carId: car.id,
+          airTemp: String(74 + carIndex * 3 + runIndex),
+          humidity: String(42 + carIndex * 4 + runIndex),
+          trackTemp: String(90 + runIndex * 4),
+          condition: ["Green early", "Rubbered bottom", "Dusty exit", "Fast middle"][(carIndex + runIndex) % 4],
+          lfPsi: (9.5 + runIndex * 0.2).toFixed(1),
+          lfSpringRate: String(145 + carIndex * 5),
+          lfShockValving: "3 / 5",
+          rfPsi: (12.0 + runIndex * 0.3).toFixed(1),
+          rfSpringRate: String(170 + carIndex * 5),
+          rfShockValving: runIndex > 1 ? "4 / 7" : "4 / 6",
+          lrPsi: (10.0 + carIndex * 0.2).toFixed(1),
+          lrSpringRate: String(125 + carIndex * 5),
+          lrShockValving: "3 / 4",
+          rrPsi: (11.8 + runIndex * 0.2).toFixed(1),
+          rrSpringRate: String(150 + carIndex * 5),
+          rrShockValving: "4 / 5",
+          stagger: (1.35 + runIndex * 0.15 + carIndex * 0.05).toFixed(2),
+          tireNotes: runIndex > 1 ? "Fresh right sides" : "Older practice set",
+          lfWeight: String(70 + carIndex + runIndex),
+          rfWeight: String(64 + carIndex),
+          lrWeight: String(78 + runIndex),
+          rrWeight: String(67 + carIndex),
+          lfRideHeight: "3.00",
+          rfRideHeight: "3.25",
+          lrRideHeight: "3.00",
+          rrRideHeight: "3.25",
+          camber: "+1.0 / -2.5",
+          caster: "+5.0 / +7.0",
+          leftWheelbase: (41.20 + carIndex * 0.05).toFixed(2),
+          rightWheelbase: (41.00 + runIndex * 0.02).toFixed(2),
+          engineGear: String(engineGear),
+          axleGear: String(axleGear),
+          gearRatio: ratio,
+          lapTime: (8.95 - carIndex * 0.07 - runIndex * 0.06).toFixed(3),
+          startPosition: isRace ? String(4 - Math.min(runIndex, 3)) : "",
+          endPosition: isRace ? String(Math.max(1, 4 - runIndex - carIndex)) : "",
+          averageRpm: String(5920 + carIndex * 80 + runIndex * 70),
+          averageDrops: String(430 - runIndex * 15 - carIndex * 10),
+          totalLaps: String(type === "Main" ? 30 : type === "Heat" ? 20 : type === "Qualifying" ? 6 : 16),
+          handling: ["Tight center, good drive off.", "Free on entry, rotates well.", "Balanced through center.", "Slight push late in run."][(carIndex + runIndex) % 4],
+          changes: runIndex === 2 ? "Backup engine installed; adjusted stagger and checked gear ratio." : runIndex ? "Adjusted stagger and checked gear ratio." : "Baseline setup for the day.",
+          nextTime: runIndex === 3 ? "Save as current baseline." : "Watch entry balance and tire growth."
+          };
+          if (runIndex === 0) baselines[sessionBaselineKey(sampleSession)] = sampleSession.id;
+          sample.push(sampleSession);
+        });
+      });
+      saveCars();
+      saveEngines();
+      saveTracks();
+      saveBaselines();
+      sessions = [...sessions, ...sample];
+      saveSessions();
+      render();
+      showToast("Sample garage and 12 sessions added.");
+    }
+
+    function exportJson() {
+      download(`setup-log-${dateStamp()}.json`, JSON.stringify({ cars, engines, tracks, baselines, sessions }, null, 2), "application/json");
+    }
+
+    function exportCsv() {
+      const header = fields.map((field) => field === "carId" ? "car" : field === "engineId" ? "installedEngine" : field === "trackId" ? "trackEntity" : field);
+      const rows = sessions.map((session) => fields.map((field) => {
+        if (field === "engineId") return csvCell(engineName(session.engineId));
+        if (field === "trackId") return csvCell(trackName(session.trackId, session.track));
+        return csvCell(field === "carId" ? carName(session.carId) : session[field]);
+      }).join(","));
+      download(`setup-log-${dateStamp()}.csv`, [header.join(","), ...rows].join("\n"), "text/csv");
+    }
+
+    function importJson(file) {
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const imported = JSON.parse(reader.result);
+          const importedSessions = Array.isArray(imported) ? imported : imported.sessions;
+          if (!Array.isArray(importedSessions)) throw new Error("Expected setup sessions");
+          if (Array.isArray(imported.cars)) {
+            imported.cars.forEach((car) => {
+              if (!car?.name) return;
+              if (!cars.some((existing) => existing.id === car.id || existing.name.toLowerCase() === car.name.toLowerCase())) {
+                cars.push(normalizeCar(car));
+              }
+            });
+            saveCars();
+          }
+          if (Array.isArray(imported.engines)) {
+            imported.engines.forEach((engine) => {
+              if (!engine?.name) return;
+              if (!engines.some((existing) => existing.id === engine.id || existing.name.toLowerCase() === engine.name.toLowerCase())) {
+                engines.push(normalizeEngine(engine));
+              }
+            });
+            saveEngines();
+          }
+          if (Array.isArray(imported.tracks)) {
+            imported.tracks.forEach((track) => {
+              if (!track?.name) return;
+              if (!tracks.some((existing) => existing.id === track.id || existing.name.toLowerCase() === track.name.toLowerCase())) {
+                tracks.push(normalizeTrack(track));
+              }
+            });
+            saveTracks();
+          }
+          if (imported.baselines && typeof imported.baselines === "object" && !Array.isArray(imported.baselines)) {
+            baselines = { ...baselines, ...imported.baselines };
+            saveBaselines();
+          }
+          sessions = importedSessions.map((session) => normalizeSession({
+            ...session,
+            id: session.id || crypto.randomUUID(),
+            createdAt: session.createdAt || new Date().toISOString()
+          }));
+          saveSessions();
+          render();
+          showToast("Setup log imported.");
+        } catch {
+          showToast("That JSON file was not a setup log.");
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function wipeLog() {
+      if (!sessions.length && !cars.length && !engines.length) return showToast("The log is already empty.");
+      if (!confirm("Wipe all cars and setup entries from this browser? Export first if you need a backup.")) return;
+      sessions = [];
+      cars = [];
+      engines = [];
+      tracks = [];
+      baselines = {};
+      saveSessions();
+      saveCars();
+      saveEngines();
+      saveTracks();
+      saveBaselines();
+      render();
+      clearForm();
+      showToast("Setup log wiped.");
+    }
+
+    function download(filename, text, type) {
+      const blob = new Blob([text], { type });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = filename;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function csvCell(value = "") {
+      return `"${String(value).replaceAll('"', '""')}"`;
+    }
+
+    function formatDate(value) {
+      if (!value) return "No date";
+      const date = new Date(`${value}T12:00:00`);
+      return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+    }
+
+    function formatDateTime(session) {
+      const date = formatDate(session.date);
+      if (!session.sessionTime) return date;
+      const time = new Date(`${session.date || dateStamp()}T${session.sessionTime}`).toLocaleTimeString(undefined, {
+        hour: "numeric",
+        minute: "2-digit"
+      });
+      return `${date} ${time}`;
+    }
+
+    function formatDateShort(session) {
+      if (!session.date) return "No date";
+      const date = new Date(`${session.date}T12:00:00`);
+      const day = date.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      return session.sessionTime ? `${day} ${session.sessionTime}` : day;
+    }
+
+    function localDateValue(date = new Date()) {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    }
+
+    function dateStamp() {
+      return localDateValue();
+    }
+
+    function escapeHtml(value = "") {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    document.querySelectorAll(".tab").forEach((button) => {
+      button.addEventListener("click", () => setTab(button.dataset.tab));
+    });
+
+    $("searchInput").addEventListener("input", renderHistory);
+    $("sessionCarFilter").addEventListener("change", renderHistory);
+    $("sessionTypeFilter").addEventListener("change", renderHistory);
+    $("setupForm").addEventListener("input", saveSessionDraft);
+    $("setupForm").addEventListener("change", saveSessionDraft);
+    $("previousSetupId").addEventListener("change", () => {
+      $("startFromPreviousButton").disabled = !$("previousSetupId").value;
+    });
+    $("startFromPreviousButton").addEventListener("click", startFromPreviousSetup);
+    $("trackId").addEventListener("change", () => {
+      $("track").value = trackName($("trackId").value, "");
+    });
+    $("seedButton").addEventListener("click", seedSamples);
+    $("showCarFormButton").addEventListener("click", addCar);
+    $("showEngineFormButton").addEventListener("click", addEngine);
+    $("showTrackFormButton").addEventListener("click", addTrack);
+    $("clearButton").addEventListener("click", clearForm);
+    $("clearCarButton").addEventListener("click", clearCarForm);
+    $("clearEngineButton").addEventListener("click", clearEngineForm);
+    $("clearTrackButton").addEventListener("click", clearTrackForm);
+    $("type").addEventListener("change", updatePositionVisibility);
+    $("exportJson").addEventListener("click", exportJson);
+    $("exportCsv").addEventListener("click", exportCsv);
+    $("importButton").addEventListener("click", () => $("importFile").click());
+    $("importFile").addEventListener("change", (event) => importJson(event.target.files[0]));
+    $("wipeButton").addEventListener("click", wipeLog);
+    $("compareBox").addEventListener("change", (event) => {
+      if (event.target.id === "compareCar") {
+        compareCarId = event.target.value;
+        compareCurrentId = "";
+        comparePreviousId = "";
+        renderCompare();
+      }
+      if (event.target.id === "compareCurrent") {
+        compareCurrentId = event.target.value;
+        comparePreviousId = "";
+        renderCompare();
+      }
+      if (event.target.id === "comparePrevious") {
+        comparePreviousId = event.target.value;
+        renderCompare();
+      }
+    });
+    $("carList").addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-car-action]");
+      if (!button) return;
+      const { carAction, id } = button.dataset;
+      if (carAction === "edit") editCar(id);
+      if (carAction === "delete") deleteCar(id);
+    });
+    $("engineList").addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-engine-action]");
+      if (!button) return;
+      const { engineAction, id } = button.dataset;
+      if (engineAction === "edit") editEngine(id);
+      if (engineAction === "select") selectEngine(id);
+      if (engineAction === "delete") deleteEngine(id);
+    });
+    $("trackList").addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-track-action]");
+      if (!button) return;
+      const { trackAction, id } = button.dataset;
+      if (trackAction === "edit") editTrack(id);
+      if (trackAction === "delete") deleteTrack(id);
+    });
+    ["lfWeight", "rfWeight", "lrWeight", "rrWeight"].forEach((field) => {
+      $(field).addEventListener("input", updateWeightCalculations);
+    });
+    ["engineGear", "axleGear"].forEach((field) => {
+      $(field).addEventListener("input", updateGearRatio);
+      $(field).addEventListener("change", updateGearRatio);
+    });
+    $("carId").addEventListener("change", () => renderEngineOptions());
+    $("engineId").addEventListener("change", syncEngineTypeFromInstalled);
+
+    $("sessionList").addEventListener("click", (event) => {
+      const button = event.target.closest("button[data-action]");
+      if (!button) return;
+      const { action, id } = button.dataset;
+      if (action === "edit") editSession(id);
+      if (action === "duplicate") duplicateSession(id);
+      if (action === "baseline") setBaselineSession(id);
+      if (action === "delete") deleteSession(id);
+    });
+
+    $("setupForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const session = readForm();
+      const existing = sessions.findIndex((item) => item.id === session.id);
+      if (existing >= 0) {
+        session.createdAt = sessions[existing].createdAt;
+        sessions[existing] = session;
+      } else {
+        sessions.push(session);
+      }
+      saveSessions();
+      render();
+      clearForm();
+      setTab("sessions");
+      showToast("Setup saved.");
+    });
+
+    $("carForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const car = readCarForm();
+      if (car.currentEngineId) {
+        cars.forEach((item) => {
+          if (item.id !== car.id && item.currentEngineId === car.currentEngineId) item.currentEngineId = "";
+        });
+      }
+      const existing = cars.findIndex((item) => item.id === car.id);
+      if (existing >= 0) {
+        cars[existing] = car;
+      } else {
+        cars.push(car);
+      }
+      saveCars();
+      clearCarForm();
+      render();
+      renderCarOptions(car.id);
+      showToast("Car saved.");
+    });
+
+    $("engineForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const engine = readEngineForm();
+      const existing = engines.findIndex((item) => item.id === engine.id);
+      if (existing >= 0) {
+        engines[existing] = engine;
+      } else {
+        engines.push(engine);
+      }
+      saveEngines();
+      clearEngineForm();
+      render();
+      renderEngineOptions(engine.id);
+      showToast("Engine saved.");
+    });
+
+    $("trackForm").addEventListener("submit", (event) => {
+      event.preventDefault();
+      const track = readTrackForm();
+      const existing = tracks.findIndex((item) => item.id === track.id);
+      if (existing >= 0) {
+        const oldName = tracks[existing].name;
+        tracks[existing] = track;
+        sessions.forEach((session) => {
+          if (session.trackId === track.id || session.track === oldName) {
+            session.trackId = track.id;
+            session.track = track.name;
+          }
+        });
+        saveSessions();
+      } else {
+        tracks.push(track);
+      }
+      saveTracks();
+      clearTrackForm();
+      render();
+      showToast("Track saved.");
+    });
+
+    setupCollapsibleSections();
+    setupNumericInputs();
+    registerServiceWorker();
+    clearForm({ clearDraft: false });
+    render();
+    const restoredDraft = restoreSessionDraft();
+    setInitialTab();
+    if (restoredDraft) setTab("sessions");
+  </script>
+</body>
+</html>
