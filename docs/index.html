@@ -62,19 +62,7 @@
           <input type="hidden" id="entryId">
 
           <fieldset>
-            <legend>Start From Previous Setup</legend>
-            <div class="form-grid">
-              <label>Previous Setup
-                <select id="previousSetupId"></select>
-              </label>
-              <label>Action
-                <button class="accent-button" id="startFromPreviousButton" type="button">Use Previous Setup</button>
-              </label>
-            </div>
-          </fieldset>
-
-          <fieldset>
-            <legend>Track</legend>
+            <legend>Session Setup</legend>
             <div class="form-grid single">
               <label>Track
                 <select id="trackId" required></select>
@@ -82,30 +70,6 @@
               </label>
             </div>
             <div class="form-grid">
-              <label>Air Temp (F)
-                <input id="airTemp" type="number" min="0" step="0.1" placeholder="72">
-              </label>
-              <label>Humidity (%)
-                <input id="humidity" type="number" min="0" max="100" step="0.1" placeholder="45">
-              </label>
-              <label>Track Temp (F)
-                <input id="trackTemp" type="number" min="0" step="0.1" placeholder="93">
-              </label>
-              <label>Track Condition
-                <input id="condition" placeholder="Green, rubbered, dusty">
-              </label>
-            </div>
-          </fieldset>
-
-          <fieldset>
-            <legend>Session</legend>
-            <div class="form-grid">
-              <label>Date
-                <input id="date" type="date" required>
-              </label>
-              <label>Time
-                <input id="sessionTime" type="time">
-              </label>
               <label>Car
                 <select id="carId" required></select>
               </label>
@@ -122,6 +86,35 @@
                   <option>Heat</option>
                   <option>Main</option>
                 </select>
+              </label>
+            </div>
+          </fieldset>
+
+          <fieldset class="track-memory" id="trackMemoryPanel">
+            <legend>Track Memory</legend>
+            <div id="trackMemoryContent" class="empty">Choose a car and track to see prior setups.</div>
+          </fieldset>
+
+          <fieldset>
+            <legend>Conditions</legend>
+            <div class="form-grid">
+              <label>Date
+                <input id="date" type="date" required>
+              </label>
+              <label>Time
+                <input id="sessionTime" type="time">
+              </label>
+              <label>Air Temp (F)
+                <input id="airTemp" type="number" min="0" step="0.1" placeholder="72">
+              </label>
+              <label>Humidity (%)
+                <input id="humidity" type="number" min="0" max="100" step="0.1" placeholder="45">
+              </label>
+              <label>Track Temp (F)
+                <input id="trackTemp" type="number" min="0" step="0.1" placeholder="93">
+              </label>
+              <label>Track Condition
+                <input id="condition" placeholder="Green, rubbered, dusty">
               </label>
             </div>
           </fieldset>
@@ -355,9 +348,6 @@
                 <label>Serial / ID
                   <input id="engineSerial" placeholder="HX-120-A">
                 </label>
-                <label>Last Maintenance
-                  <input id="engineLastMaintenance" type="date">
-                </label>
               </div>
               <div class="form-grid single">
                 <label>Notes
@@ -368,6 +358,46 @@
             <div class="form-actions">
               <button class="secondary-button" id="clearEngineButton" type="button">Cancel</button>
               <button class="success-button" type="submit">Save Engine</button>
+            </div>
+          </form>
+          <div id="maintenanceFormHost"></div>
+          <form id="maintenanceForm" class="hidden" autocomplete="off">
+            <input type="hidden" id="maintenanceEditId">
+            <input type="hidden" id="maintenanceEngineId">
+            <fieldset>
+              <legend>Engine Maintenance</legend>
+              <div class="form-grid">
+                <label>Date
+                  <input id="maintenanceDate" type="date" required>
+                </label>
+                <label>Type
+                  <select id="maintenanceType">
+                    <option>Oil Change</option>
+                    <option>Spark Plug</option>
+                    <option>Gasket</option>
+                    <option>Valve Adjustment</option>
+                    <option>Cleaning / Inspection</option>
+                    <option>Repair</option>
+                    <option>Full Refresh</option>
+                    <option>Other</option>
+                  </select>
+                </label>
+                <label>Performed By
+                  <input id="maintenancePerformedBy" placeholder="Builder, shop, or person">
+                </label>
+                <label>Cost
+                  <input id="maintenanceCost" type="number" min="0" step="0.01" placeholder="0.00">
+                </label>
+              </div>
+              <div class="form-grid single">
+                <label>Notes
+                  <textarea id="maintenanceNotes" placeholder="Oil type, parts changed, builder notes, repair details"></textarea>
+                </label>
+              </div>
+            </fieldset>
+            <div class="form-actions">
+              <button class="secondary-button" id="clearMaintenanceButton" type="button">Cancel</button>
+              <button class="success-button" type="submit">Save Maintenance</button>
             </div>
           </form>
           <div class="car-list" id="engineList"></div>

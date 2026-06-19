@@ -381,6 +381,64 @@ h1 {
   font-weight: 850;
 }
 
+.maintenance-list {
+  display: grid;
+  gap: 8px;
+  margin: 10px 0;
+}
+
+.maintenance-list summary {
+  min-height: 38px;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--field);
+  color: var(--ink);
+  cursor: pointer;
+  list-style: none;
+  font-size: .82rem;
+  font-weight: 900;
+}
+
+.maintenance-list summary::-webkit-details-marker {
+  display: none;
+}
+
+.maintenance-list summary::after {
+  content: "+";
+  margin-left: auto;
+  color: var(--muted);
+  font-size: 1rem;
+}
+
+.maintenance-list[open] summary::after {
+  content: "-";
+}
+
+.maintenance-list h3 {
+  margin: 0;
+  font-size: .82rem;
+}
+
+.maintenance-item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: start;
+  padding: 9px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--field);
+}
+
+.maintenance-item p {
+  margin: 3px 0 0;
+  color: var(--muted);
+  font-size: .78rem;
+}
+
 .session-card.main { border-left-color: var(--primary); }
 .session-card.heat { border-left-color: var(--good); }
 .session-card.qualifying { border-left-color: var(--warn); }
@@ -502,6 +560,46 @@ h1 {
   padding: 22px 16px;
   text-align: center;
   color: var(--muted);
+}
+
+.track-memory .empty {
+  padding: 14px 12px;
+}
+
+.memory-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.memory-card {
+  display: grid;
+  align-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  min-height: 150px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: #fbfcfa;
+}
+
+.memory-card h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: .78rem;
+  font-weight: 900;
+}
+
+.memory-card strong {
+  display: block;
+  margin-top: 4px;
+  font-size: .95rem;
+  overflow-wrap: anywhere;
+}
+
+.memory-card .small-button {
+  width: 100%;
 }
 
 form {
@@ -1016,6 +1114,10 @@ textarea:focus {
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
     gap: 20px;
     align-items: start;
+  }
+
+  .memory-grid {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
   }
 
   .garage-section.wide {

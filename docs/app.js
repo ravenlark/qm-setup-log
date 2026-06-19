@@ -1,6 +1,7 @@
 const STORAGE_KEY = "raceSetupLog.sessions.v1";
 const CARS_KEY = "raceSetupLog.cars.v1";
 const ENGINES_KEY = "raceSetupLog.engines.v1";
+const MAINTENANCE_KEY = "raceSetupLog.engineMaintenance.v1";
 const TRACKS_KEY = "raceSetupLog.tracks.v1";
 const BASELINES_KEY = "raceSetupLog.baselines.v1";
 const DRAFT_KEY = "raceSetupLog.sessionDraft.v1";
@@ -27,7 +28,7 @@ const fields = [
 const decimalNumericFields = [
   "airTemp", "humidity", "trackTemp", "lfPsi", "rfPsi", "lrPsi", "rrPsi", "lfOffset",
   "rfOffset", "lrOffset", "rrOffset", "stagger",
-  "lfWeight", "rfWeight", "lrWeight", "rrWeight", "lfRideHeight", "rfRideHeight",
+  "lfWeight", "rfWeight", "lrWeight", "rrWeight", "lfRideHeight", "rfRideHeight", "maintenanceCost",
   "lrRideHeight", "rrRideHeight", "leftWheelbase", "rightWheelbase", "lapTime"
 ];
 const signedDecimalNumericFields = [
@@ -42,6 +43,7 @@ const integerNumericFields = [
 
 let cars = loadCars();
 let engines = loadEngines();
+let maintenanceEntries = loadMaintenanceEntries();
 let tracks = loadTracks();
 let baselines = loadBaselines();
 migrateEngineAssignments();
@@ -78,6 +80,15 @@ function loadEngines() {
   }
 }
 
+function loadMaintenanceEntries() {
+  try {
+    const loaded = JSON.parse(localStorage.getItem(MAINTENANCE_KEY) || "[]");
+    return Array.isArray(loaded) ? loaded.map(normalizeMaintenanceEntry) : [];
+  } catch {
+    return [];
+  }
+}
+
 function loadTracks() {
   try {
     const loaded = JSON.parse(localStorage.getItem(TRACKS_KEY) || "[]");
@@ -106,6 +117,10 @@ function saveCars() {
 
 function saveEngines() {
   localStorage.setItem(ENGINES_KEY, JSON.stringify(engines));
+}
+
+function saveMaintenanceEntries() {
+  localStorage.setItem(MAINTENANCE_KEY, JSON.stringify(maintenanceEntries));
 }
 
 function saveTracks() {
@@ -186,6 +201,15 @@ function sortedEngines() {
   return [...engines].sort((a, b) => a.name.localeCompare(b.name));
 }
 
+function sortedMaintenanceEntries(engineId = "") {
+  return maintenanceEntries
+    .filter((entry) => !engineId || entry.engineId === engineId)
+    .sort((a, b) => {
+      const dateSort = maintenanceDate(b) - maintenanceDate(a);
+      return dateSort || (b.createdAt || "").localeCompare(a.createdAt || "");
+    });
+}
+
 function normalizeCar(car = {}) {
   return {
     id: car.id || crypto.randomUUID(),
@@ -206,6 +230,19 @@ function normalizeEngine(engine = {}) {
     serial: String(engine.serial || "").trim(),
     lastMaintenance: String(engine.lastMaintenance || "").trim(),
     notes: String(engine.notes || "").trim()
+  };
+}
+
+function normalizeMaintenanceEntry(entry = {}) {
+  return {
+    id: entry.id || crypto.randomUUID(),
+    engineId: entry.engineId || "",
+    date: entry.date || localDateValue(),
+    type: normalizeMaintenanceType(entry.type),
+    performedBy: String(entry.performedBy || "").trim(),
+    cost: String(entry.cost || "").trim(),
+    notes: String(entry.notes || "").trim(),
+    createdAt: entry.createdAt || new Date().toISOString()
   };
 }
 
@@ -230,6 +267,20 @@ function normalizeEngineType(type = "") {
   if (type === "Honda 120/160") return "Honda 120";
   if (type === "Briggs & Stratton") return "Briggs & Stratton Animal";
   return GEARBOX_RATIOS[type] ? type : "Honda 120";
+}
+
+function normalizeMaintenanceType(type = "") {
+  const cleanType = String(type || "").trim();
+  return [
+    "Oil Change",
+    "Spark Plug",
+    "Gasket",
+    "Valve Adjustment",
+    "Cleaning / Inspection",
+    "Repair",
+    "Full Refresh",
+    "Other"
+  ].includes(cleanType) ? cleanType : "Other";
 }
 
 function sortedTracks() {
@@ -266,6 +317,37 @@ function baselineForSession(session) {
 
 function isBaselineSession(session) {
   return Boolean(session?.id && baselineForSession(session) === session.id);
+}
+
+function currentTrackMemorySessions() {
+  const carId = $("carId")?.value || "";
+  const trackId = $("trackId")?.value || "";
+  const trackValue = trackName(trackId, $("track")?.value || "");
+  const entryId = $("entryId")?.value || "";
+  if (!carId || !trackId) return [];
+  return sortedSessions().filter((session) => {
+    const sameTrackId = session.trackId && session.trackId === trackId;
+    const sameTrackName = !session.trackId && session.track && session.track.toLowerCase() === trackValue.toLowerCase();
+    return session.id !== entryId && session.carId === carId && (sameTrackId || sameTrackName);
+  });
+}
+
+function bestLapMemorySession(memorySessions = []) {
+  return memorySessions
+    .filter((session) => parseNumber(session.lapTime) > 0)
+    .sort((a, b) => parseNumber(a.lapTime) - parseNumber(b.lapTime) || sessionDateTime(b) - sessionDateTime(a))[0] || null;
+}
+
+function bestFinishMemorySession(memorySessions = []) {
+  return memorySessions
+    .filter((session) => parseNumber(session.endPosition) > 0)
+    .sort((a, b) => parseNumber(a.endPosition) - parseNumber(b.endPosition) || sessionDateTime(b) - sessionDateTime(a))[0] || null;
+}
+
+function baselineMemorySession(memorySessions = []) {
+  const key = baselineKey($("carId")?.value || "", $("trackId")?.value || "", $("track")?.value || "");
+  const baselineId = baselines[key] || "";
+  return memorySessions.find((session) => session.id === baselineId) || null;
 }
 
 function getOrCreateCar(name = "Default Car") {
@@ -338,16 +420,6 @@ function renderTrackOptions() {
   $("trackId").innerHTML = sortedTracks().map((track) => `<option value="${track.id}">${escapeHtml(track.name)}</option>`).join("");
   $("trackId").value = tracks.some((track) => track.id === selected) ? selected : sortedTracks()[0]?.id || "";
   $("track").value = trackName($("trackId").value, "");
-}
-
-function renderPreviousSetupOptions(selectedId = $("previousSetupId")?.value || "") {
-  const options = sortedSessions().map((session) => {
-    const label = `${isBaselineSession(session) ? "Baseline - " : ""}${compareLabel(session)} - ${carName(session.carId)}`;
-    return `<option value="${session.id}" ${session.id === selectedId ? "selected" : ""}>${escapeHtml(label)}</option>`;
-  }).join("");
-  $("previousSetupId").innerHTML = [`<option value="">Choose a previous setup</option>`, options].join("");
-  $("previousSetupId").value = sessions.some((session) => session.id === selectedId) ? selectedId : "";
-  $("startFromPreviousButton").disabled = !$("previousSetupId").value;
 }
 
 function renderEngineOptions(selectedId = $("engineId")?.value || "") {
@@ -460,6 +532,32 @@ function normalizeSession(session = {}) {
 function sessionDateTime(session) {
   if (!session?.date) return new Date(0);
   return new Date(`${session.date}T${session.sessionTime || "00:00"}`);
+}
+
+function maintenanceDate(entry) {
+  if (!entry?.date) return new Date(0);
+  return new Date(`${entry.date}T00:00:00`);
+}
+
+function engineSessions(engineId) {
+  return sessions.filter((session) => session.engineId === engineId);
+}
+
+function engineTotalLaps(engineId) {
+  return engineSessions(engineId).reduce((total, session) => total + parseNumber(session.totalLaps), 0);
+}
+
+function latestEngineRefresh(engineId) {
+  return sortedMaintenanceEntries(engineId).find((entry) => entry.type === "Full Refresh") || null;
+}
+
+function engineLapsSinceRefresh(engineId) {
+  const refresh = latestEngineRefresh(engineId);
+  if (!refresh) return engineTotalLaps(engineId);
+  const refreshDate = maintenanceDate(refresh);
+  return engineSessions(engineId)
+    .filter((session) => sessionDateTime(session) >= refreshDate)
+    .reduce((total, session) => total + parseNumber(session.totalLaps), 0);
 }
 
 function isPositionSession(type) {
@@ -778,12 +876,12 @@ function setupCollapsibleSections() {
 function render() {
   renderCarOptions();
   renderTrackOptions();
-  renderPreviousSetupOptions();
   renderHistory();
   renderCars();
   renderEngines();
   renderTracks();
   renderCompare();
+  renderTrackMemory();
 }
 
 function setInitialTab() {
@@ -884,23 +982,47 @@ function renderEngines() {
   }
 
   list.innerHTML = sortedEngines().map((engine) => {
-    const runCount = sessions.filter((session) => session.engineId === engine.id).length;
+    const runCount = engineSessions(engine.id).length;
+    const engineMaintenance = sortedMaintenanceEntries(engine.id);
+    const latestMaintenance = engineMaintenance[0];
+    const latestRefresh = latestEngineRefresh(engine.id);
+    const totalLaps = engineTotalLaps(engine.id);
+    const lapsSinceRefresh = engineLapsSinceRefresh(engine.id);
     const installedCar = cars.find((car) => car.currentEngineId === engine.id);
     return `
       <article class="session-card" data-engine-card="${engine.id}">
         <div class="session-head">
           <div>
             <h2 class="session-title">${escapeHtml(engine.name)}</h2>
-            <p class="meta">${escapeHtml(engine.type)} · ${escapeHtml(installedCar ? `Installed in ${installedCar.name}` : "Not installed")} · ${runCount} ${runCount === 1 ? "session" : "sessions"}</p>
+            <p class="meta">${escapeHtml([engine.serial ? `ID ${engine.serial}` : "", engine.type, installedCar ? `Installed in ${installedCar.name}` : "Not installed", `${runCount} ${runCount === 1 ? "session" : "sessions"}`].filter(Boolean).join(" · "))}</p>
           </div>
           <span class="pill">Engine</span>
         </div>
-        <div class="engine-details meta">
-          <p><strong>ID:</strong> ${escapeHtml(engine.serial || "--")}</p>
-          <p><strong>Last Maintenance:</strong> ${escapeHtml(engine.lastMaintenance ? formatDate(engine.lastMaintenance) : "--")}</p>
-          <p><strong>Notes:</strong> ${escapeHtml(engine.notes || "No notes yet.")}</p>
+        <div class="card-grid">
+          <div class="mini"><span>Total Laps</span><strong>${escapeHtml(String(totalLaps))}</strong></div>
+          <div class="mini"><span>Since Refresh</span><strong>${escapeHtml(String(lapsSinceRefresh))}</strong></div>
+          <div class="mini"><span>Last Service</span><strong>${escapeHtml(latestMaintenance ? formatDate(latestMaintenance.date) : "--")}</strong></div>
+          <div class="mini"><span>Last Refresh</span><strong>${escapeHtml(latestRefresh ? formatDate(latestRefresh.date) : "--")}</strong></div>
         </div>
+        <p class="meta">${escapeHtml(engine.notes || "No notes yet.")}</p>
+        <details class="maintenance-list">
+          <summary>Maintenance (${engineMaintenance.length})</summary>
+          ${engineMaintenance.length ? engineMaintenance.map((entry) => `
+            <div class="maintenance-item">
+              <div>
+                <strong>${escapeHtml(entry.type)}</strong>
+                <p>${escapeHtml(maintenanceMeta(entry))}</p>
+                ${entry.notes ? `<p>${escapeHtml(entry.notes)}</p>` : ""}
+              </div>
+              <div class="card-actions">
+                <button class="small-button icon-only" type="button" data-maintenance-action="edit" data-id="${entry.id}" aria-label="Edit maintenance" title="Edit maintenance">${actionIcon("edit")}</button>
+                <button class="small-button icon-only" type="button" data-maintenance-action="delete" data-id="${entry.id}" aria-label="Remove maintenance" title="Remove maintenance">${actionIcon("trash")}</button>
+              </div>
+            </div>
+          `).join("") : `<div class="empty">No maintenance entries yet.</div>`}
+        </details>
         <div class="card-actions">
+          <button class="small-button" type="button" data-engine-action="maintenance" data-id="${engine.id}">Add Maintenance</button>
           <button class="small-button icon-only" type="button" data-engine-action="edit" data-id="${engine.id}" aria-label="Edit engine" title="Edit engine">${actionIcon("edit")}</button>
           <button class="small-button icon-only" type="button" data-engine-action="delete" data-id="${engine.id}" aria-label="Remove engine" title="Remove engine">${actionIcon("trash")}</button>
         </div>
@@ -951,6 +1073,54 @@ function renderTracks() {
       </article>
     `;
   }).join("");
+}
+
+function renderTrackMemory() {
+  const content = $("trackMemoryContent");
+  if (!content) return;
+
+  const carId = $("carId")?.value || "";
+  const trackId = $("trackId")?.value || "";
+  const selectedTrack = trackName(trackId, $("track")?.value || "");
+  if (!carId || !trackId) {
+    content.className = "empty";
+    content.innerHTML = "Choose a car and track to see prior setups.";
+    return;
+  }
+
+  const memorySessions = currentTrackMemorySessions();
+  if (!memorySessions.length) {
+    content.className = "empty";
+    content.innerHTML = `No prior setups to load for ${escapeHtml(carName(carId))} at ${escapeHtml(selectedTrack)}.`;
+    return;
+  }
+
+  const baseline = baselineMemorySession(memorySessions);
+  const fastest = bestLapMemorySession(memorySessions);
+  const bestFinish = bestFinishMemorySession(memorySessions);
+  const recent = memorySessions[0];
+  content.className = "";
+  content.innerHTML = `
+    <div class="memory-grid">
+      ${renderMemoryCard("Baseline", baseline, "Use Baseline", baseline ? `${formatDate(baseline.date)} - ${baseline.type || "Run"}` : "No baseline set")}
+      ${renderMemoryCard("Fastest Lap", fastest, "Load Fastest", fastest ? `${fastest.lapTime}s` : "No lap time yet")}
+      ${renderMemoryCard("Best Finish", bestFinish, "Load Finish", bestFinish ? `P${bestFinish.endPosition}` : "No finish yet")}
+      ${renderMemoryCard("Most Recent", recent, "Load Recent", recent ? formatDate(recent.date) : "No run yet")}
+    </div>
+  `;
+}
+
+function renderMemoryCard(title, session, buttonLabel, value) {
+  return `
+    <div class="memory-card">
+      <div>
+        <h2>${escapeHtml(title)}</h2>
+        <strong>${escapeHtml(value || "--")}</strong>
+        <p class="meta">${session ? escapeHtml(`${session.type || "Run"} - ${formatDate(session.date)}`) : "Not available"}</p>
+      </div>
+      <button class="small-button" type="button" data-memory-load="${session?.id || ""}" ${session ? "" : "disabled"}>${escapeHtml(buttonLabel)}</button>
+    </div>
+  `;
 }
 
 function renderCompare() {
@@ -1062,6 +1232,7 @@ function fillForm(session = {}) {
   updateWeightCalculations();
   updateGearRatio();
   updatePositionVisibility();
+  renderTrackMemory();
   saveSessionDraft();
 }
 
@@ -1127,6 +1298,7 @@ function restoreSessionDraft() {
     updateWeightCalculations();
     updateGearRatio();
     updatePositionVisibility();
+    renderTrackMemory();
     suppressDraftSave = false;
     showToast("Restored unsaved setup draft.");
     return true;
@@ -1137,18 +1309,43 @@ function restoreSessionDraft() {
   }
 }
 
+function readSessionSetupContext() {
+  return {
+    trackId: $("trackId")?.value || "",
+    carId: $("carId")?.value || "",
+    engineId: $("engineId")?.value || "",
+    driver: $("driver")?.value || "",
+    type: $("type")?.value || "Practice"
+  };
+}
+
+function restoreSessionSetupContext(context = {}) {
+  if (tracks.some((track) => track.id === context.trackId)) {
+    $("trackId").value = context.trackId;
+  }
+  $("track").value = trackName($("trackId").value, "");
+  if (cars.some((car) => car.id === context.carId)) {
+    $("carId").value = context.carId;
+  }
+  renderEngineOptions(context.engineId);
+  $("driver").value = context.driver || "";
+  $("type").value = ["Practice", "Qualifying", "Heat", "Main"].includes(context.type) ? context.type : "Practice";
+}
+
 function clearForm({ clearDraft = true } = {}) {
+  const sessionSetup = readSessionSetupContext();
   suppressDraftSave = true;
   $("setupForm").reset();
   $("entryId").value = "";
+  restoreSessionSetupContext(sessionSetup);
   $("lrHub").value = "Locked";
   syncLrHubRadios();
-  $("trackId").value = "";
   $("date").value = localDateValue();
   $("sessionTime").value = new Date().toTimeString().slice(0, 5);
   updateWeightCalculations();
   updateGearRatio();
   updatePositionVisibility();
+  renderTrackMemory();
   suppressDraftSave = false;
   if (clearDraft) clearSessionDraft();
 }
@@ -1223,7 +1420,6 @@ function fillEngineForm(engine = {}) {
   $("engineNameInput").value = engine.name || "";
   $("engineTypeInput").value = engine.type || "Honda 120";
   $("engineSerial").value = engine.serial || "";
-  $("engineLastMaintenance").value = engine.lastMaintenance || "";
   $("engineNotes").value = engine.notes || "";
 }
 
@@ -1233,7 +1429,6 @@ function readEngineForm() {
     name: $("engineNameInput").value,
     type: $("engineTypeInput").value,
     serial: $("engineSerial").value,
-    lastMaintenance: $("engineLastMaintenance").value,
     notes: $("engineNotes").value
   });
 }
@@ -1271,6 +1466,7 @@ function deleteEngine(id) {
   const engine = engines.find((item) => item.id === id);
   if (!engine) return;
   const runCount = sessions.filter((session) => session.engineId === id).length;
+  const maintenanceCount = maintenanceEntries.filter((entry) => entry.engineId === id).length;
   const installedCar = cars.find((car) => car.currentEngineId === id);
   if (installedCar) {
     showToast(`Remove ${engine.name} from ${installedCar.name} before deleting it.`);
@@ -1280,12 +1476,85 @@ function deleteEngine(id) {
     showToast("Engines with sessions cannot be removed.");
     return;
   }
+  if (maintenanceCount) {
+    showToast("Engines with maintenance entries cannot be removed.");
+    return;
+  }
   if (!confirm(`Remove ${engine.name}?`)) return;
   engines = engines.filter((item) => item.id !== id);
   saveEngines();
   clearEngineForm();
   render();
   showToast("Engine removed.");
+}
+
+function addMaintenance(engineId) {
+  const engine = engines.find((item) => item.id === engineId);
+  if (!engine) return;
+  clearMaintenanceForm();
+  $("maintenanceEngineId").value = engine.id;
+  $("maintenanceDate").value = localDateValue();
+  setTab("cars");
+  document.querySelector(`[data-engine-card="${engine.id}"]`)?.after($("maintenanceForm"));
+  showMaintenanceForm();
+  $("maintenanceType").focus({ preventScroll: true });
+}
+
+function fillMaintenanceForm(entry = {}) {
+  $("maintenanceEditId").value = entry.id || "";
+  $("maintenanceEngineId").value = entry.engineId || "";
+  $("maintenanceDate").value = entry.date || localDateValue();
+  $("maintenanceType").value = normalizeMaintenanceType(entry.type);
+  $("maintenancePerformedBy").value = entry.performedBy || "";
+  $("maintenanceCost").value = entry.cost || "";
+  $("maintenanceNotes").value = entry.notes || "";
+}
+
+function readMaintenanceForm() {
+  return normalizeMaintenanceEntry({
+    id: $("maintenanceEditId").value || crypto.randomUUID(),
+    engineId: $("maintenanceEngineId").value,
+    date: $("maintenanceDate").value,
+    type: $("maintenanceType").value,
+    performedBy: $("maintenancePerformedBy").value,
+    cost: $("maintenanceCost").value,
+    notes: $("maintenanceNotes").value
+  });
+}
+
+function clearMaintenanceForm() {
+  if ($("maintenanceFormHost") && $("maintenanceForm")) $("maintenanceFormHost").appendChild($("maintenanceForm"));
+  $("maintenanceForm").reset();
+  $("maintenanceEditId").value = "";
+  $("maintenanceEngineId").value = "";
+  $("maintenanceDate").value = localDateValue();
+  $("maintenanceType").value = "Oil Change";
+  $("maintenanceForm").classList.add("hidden");
+}
+
+function showMaintenanceForm() {
+  $("maintenanceForm").classList.remove("hidden");
+}
+
+function editMaintenance(id) {
+  const entry = maintenanceEntries.find((item) => item.id === id);
+  if (!entry) return;
+  fillMaintenanceForm(entry);
+  setTab("cars");
+  document.querySelector(`[data-engine-card="${entry.engineId}"]`)?.after($("maintenanceForm"));
+  showMaintenanceForm();
+  $("maintenanceType").focus({ preventScroll: true });
+}
+
+function deleteMaintenance(id) {
+  const entry = maintenanceEntries.find((item) => item.id === id);
+  if (!entry) return;
+  if (!confirm(`Remove ${entry.type} from ${formatDate(entry.date)}?`)) return;
+  maintenanceEntries = maintenanceEntries.filter((item) => item.id !== id);
+  saveMaintenanceEntries();
+  clearMaintenanceForm();
+  renderEngines();
+  showToast("Maintenance entry removed.");
 }
 
 function addTrack() {
@@ -1379,7 +1648,7 @@ function duplicateSession(id) {
   startFromSession(session);
 }
 
-function startFromSession(session) {
+function startFromSession(session, toastMessage = "Copied setup into a new entry.") {
   fillForm({
     ...session,
     id: "",
@@ -1398,13 +1667,24 @@ function startFromSession(session) {
   });
   setTab("sessions");
   $("trackId").focus({ preventScroll: true });
-  showToast("Copied setup into a new entry.");
+  if (toastMessage) showToast(toastMessage);
 }
 
-function startFromPreviousSetup() {
-  const session = sessions.find((item) => item.id === $("previousSetupId").value);
-  if (!session) return showToast("Choose a previous setup first.");
-  startFromSession(session);
+function startFromTrackMemory(session) {
+  const conditions = {
+    date: $("date").value,
+    sessionTime: $("sessionTime").value,
+    airTemp: $("airTemp").value,
+    humidity: $("humidity").value,
+    trackTemp: $("trackTemp").value,
+    condition: $("condition").value
+  };
+  startFromSession(session, "");
+  Object.entries(conditions).forEach(([field, value]) => {
+    $(field).value = value;
+  });
+  saveSessionDraft();
+  showToast("Loaded track setup. Conditions were kept.");
 }
 
 function setBaselineSession(id) {
@@ -1416,6 +1696,7 @@ function setBaselineSession(id) {
   saveBaselines();
   renderHistory();
   renderCompare();
+  renderTrackMemory();
   showToast("Baseline setup saved for this car and track.");
 }
 
@@ -1459,6 +1740,15 @@ function seedSamples() {
     backupEngine.lastMaintenance = "2026-04-28";
     backupEngine.notes = "Backup engine installed when diagnosing primary package.";
     car.currentEngineId = primaryEngine.id;
+    [
+      { engineId: primaryEngine.id, date: "2026-04-15", type: "Full Refresh", performedBy: "Builder", cost: "450", notes: "Fresh builder refresh before spring races." },
+      { engineId: primaryEngine.id, date: primaryEngine.lastMaintenance, type: "Oil Change", performedBy: "Team", cost: "12", notes: "Oil changed and plug checked after race weekend." },
+      { engineId: backupEngine.id, date: backupEngine.lastMaintenance, type: "Cleaning / Inspection", performedBy: "Team", cost: "", notes: "Backup engine inspected and staged for diagnosis runs." }
+    ].forEach((entry) => {
+      if (!maintenanceEntries.some((existing) => existing.engineId === entry.engineId && existing.date === entry.date && existing.type === entry.type)) {
+        maintenanceEntries.push(normalizeMaintenanceEntry(entry));
+      }
+    });
 
     runTypes.forEach((type, runIndex) => {
       const installedEngine = runIndex === 2 ? backupEngine : primaryEngine;
@@ -1554,6 +1844,7 @@ function seedSamples() {
   });
   saveCars();
   saveEngines();
+  saveMaintenanceEntries();
   saveTracks();
   saveBaselines();
   sessions = [...sessions, ...sample];
@@ -1563,7 +1854,7 @@ function seedSamples() {
 }
 
 function exportJson() {
-  download(`setup-log-${dateStamp()}.json`, JSON.stringify({ cars, engines, tracks, baselines, sessions }, null, 2), "application/json");
+  download(`setup-log-${dateStamp()}.json`, JSON.stringify({ cars, engines, maintenanceEntries, tracks, baselines, sessions }, null, 2), "application/json");
 }
 
 function exportCsv() {
@@ -1602,6 +1893,15 @@ function importJson(file) {
         });
         saveEngines();
       }
+      const importedMaintenance = Array.isArray(imported.maintenanceEntries) ? imported.maintenanceEntries : Array.isArray(imported.engineMaintenance) ? imported.engineMaintenance : [];
+      importedMaintenance.forEach((entry) => {
+        const normalized = normalizeMaintenanceEntry(entry);
+        if (!normalized.engineId) return;
+        if (!maintenanceEntries.some((existing) => existing.id === normalized.id)) {
+          maintenanceEntries.push(normalized);
+        }
+      });
+      if (importedMaintenance.length) saveMaintenanceEntries();
       if (Array.isArray(imported.tracks)) {
         imported.tracks.forEach((track) => {
           if (!track?.name) return;
@@ -1636,11 +1936,13 @@ function wipeLog() {
   sessions = [];
   cars = [];
   engines = [];
+  maintenanceEntries = [];
   tracks = [];
   baselines = {};
   saveSessions();
   saveCars();
   saveEngines();
+  saveMaintenanceEntries();
   saveTracks();
   saveBaselines();
   render();
@@ -1668,6 +1970,14 @@ function formatDate(value) {
   if (!value) return "No date";
   const date = new Date(`${value}T12:00:00`);
   return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+}
+
+function maintenanceMeta(entry) {
+  return [
+    formatDate(entry.date),
+    entry.performedBy,
+    entry.cost ? `$${entry.cost}` : ""
+  ].filter(Boolean).join(" - ");
 }
 
 function formatDateTime(session) {
@@ -1716,12 +2026,9 @@ $("sessionCarFilter").addEventListener("change", renderHistory);
 $("sessionTypeFilter").addEventListener("change", renderHistory);
 $("setupForm").addEventListener("input", saveSessionDraft);
 $("setupForm").addEventListener("change", saveSessionDraft);
-$("previousSetupId").addEventListener("change", () => {
-  $("startFromPreviousButton").disabled = !$("previousSetupId").value;
-});
-$("startFromPreviousButton").addEventListener("click", startFromPreviousSetup);
 $("trackId").addEventListener("change", () => {
   $("track").value = trackName($("trackId").value, "");
+  renderTrackMemory();
 });
 $("seedButton").addEventListener("click", seedSamples);
 $("showCarFormButton").addEventListener("click", addCar);
@@ -1730,6 +2037,7 @@ $("showTrackFormButton").addEventListener("click", addTrack);
 $("clearButton").addEventListener("click", clearForm);
 $("clearCarButton").addEventListener("click", clearCarForm);
 $("clearEngineButton").addEventListener("click", clearEngineForm);
+$("clearMaintenanceButton").addEventListener("click", clearMaintenanceForm);
 $("clearTrackButton").addEventListener("click", clearTrackForm);
 $("type").addEventListener("change", updatePositionVisibility);
 document.querySelectorAll('input[name="lrHubChoice"]').forEach((radio) => {
@@ -1766,11 +2074,25 @@ $("carList").addEventListener("click", (event) => {
 });
 $("engineList").addEventListener("click", (event) => {
   const button = event.target.closest("button[data-engine-action]");
+  const maintenanceButton = event.target.closest("button[data-maintenance-action]");
+  if (maintenanceButton) {
+    const { maintenanceAction, id } = maintenanceButton.dataset;
+    if (maintenanceAction === "edit") editMaintenance(id);
+    if (maintenanceAction === "delete") deleteMaintenance(id);
+    return;
+  }
   if (!button) return;
   const { engineAction, id } = button.dataset;
   if (engineAction === "edit") editEngine(id);
+  if (engineAction === "maintenance") addMaintenance(id);
   if (engineAction === "select") selectEngine(id);
   if (engineAction === "delete") deleteEngine(id);
+});
+$("trackMemoryPanel").addEventListener("click", (event) => {
+  const button = event.target.closest("button[data-memory-load]");
+  if (!button?.dataset.memoryLoad) return;
+  const session = sessions.find((item) => item.id === button.dataset.memoryLoad);
+  if (session) startFromTrackMemory(session);
 });
 $("trackList").addEventListener("click", (event) => {
   const button = event.target.closest("button[data-track-action]");
@@ -1786,7 +2108,10 @@ $("trackList").addEventListener("click", (event) => {
   $(field).addEventListener("input", updateGearRatio);
   $(field).addEventListener("change", updateGearRatio);
 });
-$("carId").addEventListener("change", () => renderEngineOptions(""));
+$("carId").addEventListener("change", () => {
+  renderEngineOptions("");
+  renderTrackMemory();
+});
 $("engineId").addEventListener("change", syncEngineTypeFromInstalled);
 
 $("sessionList").addEventListener("click", (event) => {
@@ -1851,6 +2176,26 @@ $("engineForm").addEventListener("submit", (event) => {
   render();
   renderEngineOptions(engine.id);
   showToast("Engine saved.");
+});
+
+$("maintenanceForm").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const entry = readMaintenanceForm();
+  if (!engines.some((engine) => engine.id === entry.engineId)) {
+    showToast("Choose an engine before saving maintenance.");
+    return;
+  }
+  const existing = maintenanceEntries.findIndex((item) => item.id === entry.id);
+  if (existing >= 0) {
+    entry.createdAt = maintenanceEntries[existing].createdAt;
+    maintenanceEntries[existing] = entry;
+  } else {
+    maintenanceEntries.push(entry);
+  }
+  saveMaintenanceEntries();
+  clearMaintenanceForm();
+  renderEngines();
+  showToast(entry.type === "Full Refresh" ? "Full refresh logged. Laps since refresh updated." : "Maintenance saved.");
 });
 
 $("trackForm").addEventListener("submit", (event) => {
