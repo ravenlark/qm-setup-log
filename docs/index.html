@@ -594,6 +594,16 @@
       margin-top: 10px;
     }
 
+    .form-grid + .corner-grid {
+      margin-top: 10px;
+    }
+
+    .section-rule {
+      border: 0;
+      border-top: 1px solid var(--line);
+      margin: 12px 0;
+    }
+
     .corner-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -751,6 +761,14 @@
 
     .compare-row:first-child { border-top: 0; }
 
+    .compare-heading {
+      color: var(--muted);
+      font-size: .74rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0;
+    }
+
     .compare-row.changed {
       margin-left: -7px;
       margin-right: -7px;
@@ -771,7 +789,7 @@
       overflow-wrap: anywhere;
     }
 
-    .compare-row.changed strong:first-of-type {
+    .compare-row.changed strong {
       color: #8f3b14;
     }
 
@@ -1138,14 +1156,28 @@
               <div class="calc-stat"><span>Rear</span><strong id="rearPercent">--</strong></div>
               <div class="calc-stat"><span>Cross</span><strong id="crossPercent">--</strong></div>
             </div>
+            <hr class="section-rule">
             <div class="form-grid">
               <label>LF Ride Height (in)<input id="lfRideHeight" type="number" min="0" step="0.01" placeholder="3.00"></label>
               <label>RF Ride Height (in)<input id="rfRideHeight" type="number" min="0" step="0.01" placeholder="3.25"></label>
               <label>LR Ride Height (in)<input id="lrRideHeight" type="number" min="0" step="0.01" placeholder="3.00"></label>
               <label>RR Ride Height (in)<input id="rrRideHeight" type="number" min="0" step="0.01" placeholder="3.25"></label>
-              <label>Camber (deg)<input id="camber" placeholder="LF/RF"></label>
-              <label>Caster (deg)<input id="caster" placeholder="LF/RF"></label>
             </div>
+            <hr class="section-rule">
+            <div class="form-grid">
+              <label>LF Camber (deg)<input id="lfCamber" type="number" step="0.1" placeholder="1.0"></label>
+              <label>RF Camber (deg)<input id="rfCamber" type="number" step="0.1" placeholder="-2.5"></label>
+              <label>LF Caster (deg)<input id="lfCaster" type="number" step="0.1" placeholder="5.0"></label>
+              <label>RF Caster (deg)<input id="rfCaster" type="number" step="0.1" placeholder="7.0"></label>
+            </div>
+            <hr class="section-rule">
+            <div class="form-grid">
+              <label>LF Panhard (holes down)<input id="lfPanhardHoles" type="number" min="0" step="1" placeholder="2"></label>
+              <label>RF Panhard (holes down)<input id="rfPanhardHoles" type="number" min="0" step="1" placeholder="2"></label>
+              <label>LR Panhard (holes down)<input id="lrPanhardHoles" type="number" min="0" step="1" placeholder="3"></label>
+              <label>RR Panhard (holes down)<input id="rrPanhardHoles" type="number" min="0" step="1" placeholder="3"></label>
+            </div>
+            <hr class="section-rule">
             <div class="form-grid pair">
               <label>Left Wheelbase (in)<input id="leftWheelbase" type="number" min="0" step="0.001" placeholder="49.875"></label>
               <label>Right Wheelbase (in)<input id="rightWheelbase" type="number" min="0" step="0.001" placeholder="49.875"></label>
@@ -1173,6 +1205,12 @@
               <label>Average Drops (RPM)<input id="averageDrops" type="number" min="0" step="1" placeholder="400"></label>
               <label id="startPositionField" class="hidden">Start Position<input id="startPosition" type="number" min="1" step="1" placeholder="3"></label>
               <label id="endPositionField" class="hidden">End Position<input id="endPosition" type="number" min="1" step="1" placeholder="1"></label>
+            </div>
+            <div class="corner-grid">
+              <label>LF Tire Temp (F)<input id="lfTireTemp" type="number" min="0" step="1" placeholder="105"></label>
+              <label>RF Tire Temp (F)<input id="rfTireTemp" type="number" min="0" step="1" placeholder="112"></label>
+              <label>LR Tire Temp (F)<input id="lrTireTemp" type="number" min="0" step="1" placeholder="102"></label>
+              <label>RR Tire Temp (F)<input id="rrTireTemp" type="number" min="0" step="1" placeholder="110"></label>
             </div>
           </fieldset>
 
@@ -1392,18 +1430,25 @@
       "lfPsi", "lfSpringRate", "lfShockValving", "rfPsi", "rfSpringRate", "rfShockValving",
       "lrPsi", "lrSpringRate", "lrShockValving", "rrPsi", "rrSpringRate", "rrShockValving",
       "stagger", "tireNotes", "lfWeight", "rfWeight", "lrWeight", "rrWeight", "lfRideHeight",
-      "rfRideHeight", "lrRideHeight", "rrRideHeight", "camber", "caster", "leftWheelbase",
-      "rightWheelbase", "engineGear", "axleGear", "gearRatio", "lapTime", "startPosition",
-      "endPosition", "averageRpm", "averageDrops", "totalLaps", "handling", "changes", "nextTime"
+      "rfRideHeight", "lrRideHeight", "rrRideHeight", "lfCamber", "rfCamber", "lfCaster",
+      "rfCaster", "lfPanhardHoles", "rfPanhardHoles", "lrPanhardHoles", "rrPanhardHoles",
+      "leftWheelbase", "rightWheelbase", "engineGear", "axleGear", "gearRatio", "lapTime",
+      "startPosition", "endPosition", "averageRpm", "averageDrops", "totalLaps", "lfTireTemp",
+      "rfTireTemp", "lrTireTemp", "rrTireTemp", "handling", "changes", "nextTime"
     ];
     const decimalNumericFields = [
       "airTemp", "humidity", "trackTemp", "lfPsi", "rfPsi", "lrPsi", "rrPsi", "stagger",
       "lfWeight", "rfWeight", "lrWeight", "rrWeight", "lfRideHeight", "rfRideHeight",
       "lrRideHeight", "rrRideHeight", "leftWheelbase", "rightWheelbase", "lapTime"
     ];
+    const signedDecimalNumericFields = [
+      "lfCamber", "rfCamber", "lfCaster", "rfCaster"
+    ];
     const integerNumericFields = [
-      "lfSpringRate", "rfSpringRate", "lrSpringRate", "rrSpringRate", "engineGear", "axleGear",
-      "totalLaps", "averageRpm", "averageDrops", "startPosition", "endPosition", "carYear"
+      "lfSpringRate", "rfSpringRate", "lrSpringRate", "rrSpringRate", "lfPanhardHoles",
+      "rfPanhardHoles", "lrPanhardHoles", "rrPanhardHoles", "engineGear", "axleGear",
+      "totalLaps", "averageRpm", "averageDrops", "startPosition", "endPosition",
+      "lfTireTemp", "rfTireTemp", "lrTireTemp", "rrTireTemp", "carYear"
     ];
 
     let cars = loadCars();
@@ -1726,16 +1771,11 @@
       const carId = $("carId")?.value || "";
       const car = cars.find((item) => item.id === carId);
       const assigned = engines.find((engine) => engine.id === car?.currentEngineId);
-      const currentSelected = engines.find((engine) => engine.id === selectedId);
-      const available = [assigned || currentSelected || sortedEngines()[0]].filter(Boolean);
-      if (!available.length || !assigned && !currentSelected) {
-        $("engineId").innerHTML = `<option value="">No engine installed for selected car</option>`;
-        $("engineId").value = "";
-        syncEngineTypeFromInstalled();
-        return;
-      }
+      const available = sortedEngines();
+      const selectedExists = available.some((engine) => engine.id === selectedId);
+      const preferredId = selectedExists ? selectedId : assigned?.id || available[0]?.id || "";
       $("engineId").innerHTML = available.map((engine) => `<option value="${engine.id}">${escapeHtml(engineLabel(engine))}</option>`).join("");
-      $("engineId").value = available.some((engine) => engine.id === selectedId) ? selectedId : available[0]?.id || "";
+      $("engineId").value = available.some((engine) => engine.id === preferredId) ? preferredId : available[0]?.id || "";
       syncEngineTypeFromInstalled();
     }
 
@@ -1802,6 +1842,21 @@
         normalized.rrRideHeight = rr || "";
       }
 
+      if ((!normalized.lfCamber || !normalized.rfCamber) && normalized.camber) {
+        const [lf, rf] = splitPairValue(normalized.camber);
+        normalized.lfCamber = normalized.lfCamber || lf;
+        normalized.rfCamber = normalized.rfCamber || rf;
+      }
+
+      if ((!normalized.lfCaster || !normalized.rfCaster) && normalized.caster) {
+        const [lf, rf] = splitPairValue(normalized.caster);
+        normalized.lfCaster = normalized.lfCaster || lf;
+        normalized.rfCaster = normalized.rfCaster || rf;
+      }
+      ["lfCamber", "rfCamber", "lfCaster", "rfCaster"].forEach((field) => {
+        normalized[field] = normalizeSignedNumberText(normalized[field]);
+      });
+
       if (!normalized.startPosition && normalized.finish) normalized.endPosition = normalized.finish;
       if (!isPositionSession(normalized.type)) {
         normalized.startPosition = "";
@@ -1819,6 +1874,14 @@
 
     function isPositionSession(type) {
       return type === "Heat" || type === "Main";
+    }
+
+    function splitPairValue(value = "") {
+      return String(value).split("/").map((part) => part.trim());
+    }
+
+    function normalizeSignedNumberText(value = "") {
+      return String(value || "").trim().replace(/^\+/, "");
     }
 
     function parseNumber(value) {
@@ -1908,10 +1971,28 @@
       return String(current || "").trim() !== String(prior || "").trim();
     }
 
-    function setupDiffItems(current = {}, prior = {}) {
+    function comparisonRows(runA = {}, runB = {}) {
       const definitions = [
+        ["Best Lap", "lapTime"],
+        ["Start Position", "startPosition"],
+        ["End Position", "endPosition"],
+        ["Average RPM", "averageRpm"],
+        ["Average Drops", "averageDrops"],
+        ["Total Laps", "totalLaps"],
+        ["LF Tire Temp", "lfTireTemp"],
+        ["RF Tire Temp", "rfTireTemp"],
+        ["LR Tire Temp", "lrTireTemp"],
+        ["RR Tire Temp", "rrTireTemp"],
+        ["Date", (session) => formatDate(session.date)],
+        ["Time", "sessionTime"],
+        ["Session Type", "type"],
         ["Track", (session) => trackName(session.trackId, session.track)],
         ["Installed Engine", (session) => engineName(session.engineId)],
+        ["Driver", "driver"],
+        ["Air Temp", "airTemp"],
+        ["Humidity", "humidity"],
+        ["Track Temp", "trackTemp"],
+        ["Condition", "condition"],
         ["LF PSI", "lfPsi"],
         ["RF PSI", "rfPsi"],
         ["LR PSI", "lrPsi"],
@@ -1929,39 +2010,52 @@
         ["RF Weight", "rfWeight"],
         ["LR Weight", "lrWeight"],
         ["RR Weight", "rrWeight"],
+        ["Front %", (session) => weightPercentages(session).front],
+        ["Left %", (session) => weightPercentages(session).left],
+        ["Right %", (session) => weightPercentages(session).right],
+        ["Rear %", (session) => weightPercentages(session).rear],
+        ["Cross %", (session) => weightPercentages(session).cross],
         ["LF Ride Height", "lfRideHeight"],
         ["RF Ride Height", "rfRideHeight"],
         ["LR Ride Height", "lrRideHeight"],
         ["RR Ride Height", "rrRideHeight"],
-        ["Camber", "camber"],
-        ["Caster", "caster"],
+        ["LF Camber", "lfCamber"],
+        ["RF Camber", "rfCamber"],
+        ["LF Caster", "lfCaster"],
+        ["RF Caster", "rfCaster"],
+        ["LF Panhard", "lfPanhardHoles"],
+        ["RF Panhard", "rfPanhardHoles"],
+        ["LR Panhard", "lrPanhardHoles"],
+        ["RR Panhard", "rrPanhardHoles"],
         ["Left Wheelbase", "leftWheelbase"],
         ["Right Wheelbase", "rightWheelbase"],
         ["Engine Gear", "engineGear"],
         ["Axle Gear", "axleGear"],
-        ["Gear Ratio", "gearRatio"],
-        ["Tire Notes", "tireNotes"],
-        ["Changes", "changes"]
+        ["Gear Ratio", "gearRatio"]
       ];
 
       return definitions.map(([label, accessor]) => {
-        const currentValue = typeof accessor === "function" ? accessor(current) : current[accessor];
-        const priorValue = typeof accessor === "function" ? accessor(prior) : prior[accessor];
-        return { label, current: currentValue || "", prior: priorValue || "" };
-      }).filter((item) => valuesDiffer(item.current, item.prior));
+        const runAValue = typeof accessor === "function" ? accessor(runA) : runA[accessor];
+        const runBValue = typeof accessor === "function" ? accessor(runB) : runB[accessor];
+        return { label, runA: runAValue || "", runB: runBValue || "" };
+      });
+    }
+
+    function setupDiffItems(runA = {}, runB = {}) {
+      return comparisonRows(runA, runB).filter((item) => valuesDiffer(item.runA, item.runB));
     }
 
     function diffValueText(value) {
       return String(value || "").trim() || "--";
     }
 
-    function renderSetupDiffSummary(current, prior) {
-      const changes = setupDiffItems(current, prior);
+    function renderSetupDiffSummary(runA, runB) {
+      const changes = setupDiffItems(runA, runB);
       if (!changes.length) {
         return `
           <div class="diff-summary">
             <h3>Setup Diff Summary</h3>
-            <p>No setup changes found between these sessions.</p>
+            <p>No data changes found between Run A and Run B.</p>
           </div>
         `;
       }
@@ -1971,10 +2065,10 @@
       return `
         <div class="diff-summary">
           <h3>Setup Diff Summary</h3>
-          <p>${changes.length} ${changes.length === 1 ? "setup change" : "setup changes"} from Compare With to Current Run.</p>
+          <p>${changes.length} ${changes.length === 1 ? "data change" : "data changes"} from Run A to Run B.</p>
           <ul class="diff-list">
             ${visibleChanges.map((change) => `
-              <li>${escapeHtml(change.label)}: ${escapeHtml(diffValueText(change.prior))} -> ${escapeHtml(diffValueText(change.current))}</li>
+              <li>${escapeHtml(change.label)}: ${escapeHtml(diffValueText(change.runA))} -> ${escapeHtml(diffValueText(change.runB))}</li>
             `).join("")}
             ${remaining > 0 ? `<li>+${remaining} more in the detail rows</li>` : ""}
           </ul>
@@ -2002,12 +2096,14 @@
       }
     }
 
-    function cleanNumberValue(value, allowDecimal) {
+    function cleanNumberValue(value, allowDecimal, allowNegative = false) {
+      const raw = String(value);
+      const sign = allowNegative && raw.trimStart().startsWith("-") ? "-" : "";
       if (allowDecimal) {
-        const [whole, ...rest] = String(value).replace(/,/g, ".").replace(/[^\d.]/g, "").split(".");
-        return `${whole}${rest.length ? `.${rest.join("")}` : ""}`;
+        const [whole, ...rest] = raw.replace(/,/g, ".").replace(/[^\d.]/g, "").split(".");
+        return `${sign}${whole}${rest.length ? `.${rest.join("")}` : ""}`;
       }
-      return String(value).replace(/\D/g, "");
+      return `${sign}${raw.replace(/\D/g, "")}`;
     }
 
     function clampNumberInput(input) {
@@ -2023,16 +2119,21 @@
       if (max !== null && value > max) input.value = max;
     }
 
-    function constrainNumberInput(id, allowDecimal) {
+    function constrainNumberInput(id, allowDecimal, allowNegative = false) {
       const input = $(id);
       if (!input) return;
       input.addEventListener("beforeinput", (event) => {
         if (!event.data) return;
-        if (/[\deE+\-.,]/.test(event.data) && !/[eE+\-]/.test(event.data)) return;
+        if (/[\d.,]/.test(event.data)) return;
+        let cursorAtStart = input.value === "";
+        try {
+          cursorAtStart = input.selectionStart === 0;
+        } catch {}
+        if (allowNegative && event.data === "-" && !input.value.includes("-") && cursorAtStart) return;
         event.preventDefault();
       });
       input.addEventListener("input", () => {
-        const cleaned = cleanNumberValue(input.value, allowDecimal);
+        const cleaned = cleanNumberValue(input.value, allowDecimal, allowNegative);
         if (input.value !== cleaned) input.value = cleaned;
       });
       input.addEventListener("change", () => clampNumberInput(input));
@@ -2040,6 +2141,7 @@
 
     function setupNumericInputs() {
       decimalNumericFields.forEach((id) => constrainNumberInput(id, true));
+      signedDecimalNumericFields.forEach((id) => constrainNumberInput(id, true, true));
       integerNumericFields.forEach((id) => constrainNumberInput(id, false));
     }
 
@@ -2251,24 +2353,28 @@
 
       if (!carsWithRuns.some((car) => car.id === compareCarId)) compareCarId = carsWithRuns[0].id;
       const carRuns = sortedSessions().filter((session) => session.carId === compareCarId);
-      if (!carRuns.some((session) => session.id === compareCurrentId)) compareCurrentId = carRuns[0]?.id || "";
+      const defaultRunBId = carRuns[0]?.id || "";
+      const defaultBaselineId = defaultRunBId ? baselineForSession(carRuns[0]) : "";
+      if (!carRuns.some((session) => session.id === compareCurrentId)) {
+        compareCurrentId = carRuns.some((session) => session.id === defaultBaselineId) ? defaultBaselineId : defaultRunBId;
+      }
       let currentIndex = carRuns.findIndex((session) => session.id === compareCurrentId);
       if (currentIndex < 0) currentIndex = 0;
-      const currentRun = carRuns[currentIndex];
+      const runA = carRuns[currentIndex];
       const comparisonRuns = carRuns.filter((session) => session.id !== compareCurrentId);
-      const baselineId = currentRun ? baselineForSession(currentRun) : "";
       if (!comparisonRuns.some((session) => session.id === comparePreviousId)) {
-        comparePreviousId = comparisonRuns.some((session) => session.id === baselineId) ? baselineId : carRuns[currentIndex + 1]?.id || comparisonRuns[0]?.id || "";
+        comparePreviousId = comparisonRuns.some((session) => session.id === defaultRunBId) ? defaultRunBId : comparisonRuns[0]?.id || "";
       }
 
-      const latest = carRuns.find((session) => session.id === compareCurrentId);
-      const previous = carRuns.find((session) => session.id === comparePreviousId);
+      const runASelected = carRuns.find((session) => session.id === compareCurrentId);
+      const runBSelected = carRuns.find((session) => session.id === comparePreviousId);
+      const baselineId = runBSelected ? baselineForSession(runBSelected) : runA ? baselineForSession(runA) : "";
       const baselineSession = baselineId ? carRuns.find((session) => session.id === baselineId) : null;
-      const compareHint = !latest ? "" :
-        baselineSession && previous?.id === baselineSession.id ? `Comparing this run against the baseline for ${trackName(latest.trackId, latest.track)}.` :
-        baselineSession && latest.id === baselineSession.id ? "The current run is the baseline. Choose another Current Run to compare against it." :
-        baselineSession ? `A baseline exists for ${trackName(latest.trackId, latest.track)}. Choose the Baseline option in Compare With to use it.` :
-        `No baseline is set for ${trackName(latest.trackId, latest.track)} with this car yet. Use the star button on a session to set one.`;
+      const compareHint = !runASelected ? "" :
+        baselineSession && runASelected.id === baselineSession.id ? `Run A is the baseline for ${trackName(runBSelected?.trackId, runBSelected?.track || runASelected.track)}.` :
+        baselineSession && runBSelected?.id === baselineSession.id ? "Run B is the baseline. Choose the baseline in Run A to use it as the anchor." :
+        baselineSession ? `A baseline exists for ${trackName(runBSelected?.trackId, runBSelected?.track || runASelected.track)}. Choose the baseline option in Run A to use it.` :
+        `No baseline is set for ${trackName(runASelected.trackId, runASelected.track)} with this car yet. Use the star button on a session to set one.`;
       const controls = `
         <div class="compare-controls">
           <label class="wide">Car
@@ -2276,12 +2382,12 @@
               ${carsWithRuns.map((car) => `<option value="${car.id}" ${car.id === compareCarId ? "selected" : ""}>${escapeHtml(car.name)}</option>`).join("")}
             </select>
           </label>
-          <label>Current Run
+          <label>Run A
             <select id="compareCurrent">
               ${carRuns.map((session) => `<option value="${session.id}" ${session.id === compareCurrentId ? "selected" : ""}>${escapeHtml(`${isBaselineSession(session) ? "Baseline - " : ""}${compareLabel(session)}`)}</option>`).join("")}
             </select>
           </label>
-          <label>Compare With
+          <label>Run B
             <select id="comparePrevious">
               ${comparisonRuns.map((session) => `<option value="${session.id}" ${session.id === comparePreviousId ? "selected" : ""}>${escapeHtml(`${isBaselineSession(session) ? "Baseline - " : ""}${compareLabel(session)}`)}</option>`).join("")}
             </select>
@@ -2290,7 +2396,7 @@
         </div>
       `;
 
-      if (!latest || !previous) {
+      if (!runASelected || !runBSelected) {
         box.innerHTML = `
           <div class="compare-card">
             <h2 class="session-title">Compare Runs</h2>
@@ -2301,38 +2407,24 @@
         return;
       }
 
-      const rows = [
-        ["Track", latest.track, previous.track],
-        ["Engine", engineName(latest.engineId), engineName(previous.engineId)],
-        ["Best Lap", latest.lapTime, previous.lapTime],
-        ["LF/RF PSI", `${latest.lfPsi || "--"} / ${latest.rfPsi || "--"}`, `${previous.lfPsi || "--"} / ${previous.rfPsi || "--"}`],
-        ["LR/RR PSI", `${latest.lrPsi || "--"} / ${latest.rrPsi || "--"}`, `${previous.lrPsi || "--"} / ${previous.rrPsi || "--"}`],
-        ["Springs LF/RF", `${latest.lfSpringRate || "--"} / ${latest.rfSpringRate || "--"}`, `${previous.lfSpringRate || "--"} / ${previous.rfSpringRate || "--"}`],
-        ["Shocks LF/RF", `${latest.lfShockValving || "--"} / ${latest.rfShockValving || "--"}`, `${previous.lfShockValving || "--"} / ${previous.rfShockValving || "--"}`],
-        ["Stagger", latest.stagger, previous.stagger],
-        ["Cross", weightPercentages(latest).cross, weightPercentages(previous).cross],
-        ["Gear", formatGear(latest), formatGear(previous)],
-        ["Avg RPM", latest.averageRpm, previous.averageRpm],
-        ["Avg Drops", latest.averageDrops, previous.averageDrops],
-        ["Laps", latest.totalLaps, previous.totalLaps],
-        ["Handling", latest.handling, previous.handling]
-      ];
-      if (isPositionSession(latest.type) || isPositionSession(previous.type)) {
-        rows.splice(rows.length - 1, 0, ["Start", latest.startPosition, previous.startPosition]);
-        rows.splice(rows.length - 1, 0, ["Finish", latest.endPosition, previous.endPosition]);
-      }
+      const rows = comparisonRows(runASelected, runBSelected);
 
       box.innerHTML = `
         <div class="compare-card">
           <h2 class="session-title">${escapeHtml(carName(compareCarId))} Comparison</h2>
           ${controls}
-          <p class="meta">${formatDateTime(latest)} compared with ${formatDateTime(previous)}</p>
-          ${renderSetupDiffSummary(latest, previous)}
-          ${rows.map(([label, current, prior]) => `
-            <div class="compare-row ${valuesDiffer(current, prior) ? "changed" : ""}">
+          <p class="meta">Run A: ${formatDateTime(runASelected)} &middot; Run B: ${formatDateTime(runBSelected)}</p>
+          ${renderSetupDiffSummary(runASelected, runBSelected)}
+          <div class="compare-row compare-heading">
+            <span>Data Point</span>
+            <strong>Run A</strong>
+            <strong>Run B</strong>
+          </div>
+          ${rows.map(({ label, runA, runB }) => `
+            <div class="compare-row ${valuesDiffer(runA, runB) ? "changed" : ""}">
               <span>${escapeHtml(label)}</span>
-              <strong>${escapeHtml(current || "--")}</strong>
-              <strong>${escapeHtml(prior || "--")}</strong>
+              <strong>${escapeHtml(runA || "--")}</strong>
+              <strong>${escapeHtml(runB || "--")}</strong>
             </div>
           `).join("")}
         </div>
@@ -2805,8 +2897,14 @@
           rfRideHeight: "3.25",
           lrRideHeight: "3.00",
           rrRideHeight: "3.25",
-          camber: "+1.0 / -2.5",
-          caster: "+5.0 / +7.0",
+          lfCamber: "1.0",
+          rfCamber: "-2.5",
+          lfCaster: "5.0",
+          rfCaster: "7.0",
+          lfPanhardHoles: String(2 + carIndex),
+          rfPanhardHoles: String(2 + runIndex % 2),
+          lrPanhardHoles: String(3 + carIndex),
+          rrPanhardHoles: String(3 + runIndex % 2),
           leftWheelbase: (41.20 + carIndex * 0.05).toFixed(2),
           rightWheelbase: (41.00 + runIndex * 0.02).toFixed(2),
           engineGear: String(engineGear),
@@ -2818,6 +2916,10 @@
           averageRpm: String(5920 + carIndex * 80 + runIndex * 70),
           averageDrops: String(430 - runIndex * 15 - carIndex * 10),
           totalLaps: String(type === "Main" ? 30 : type === "Heat" ? 20 : type === "Qualifying" ? 6 : 16),
+          lfTireTemp: String(96 + carIndex * 2 + runIndex * 3),
+          rfTireTemp: String(103 + carIndex * 2 + runIndex * 4),
+          lrTireTemp: String(94 + carIndex * 2 + runIndex * 3),
+          rrTireTemp: String(101 + carIndex * 2 + runIndex * 4),
           handling: ["Tight center, good drive off.", "Free on entry, rotates well.", "Balanced through center.", "Slight push late in run."][(carIndex + runIndex) % 4],
           changes: runIndex === 2 ? "Backup engine installed; adjusted stagger and checked gear ratio." : runIndex ? "Adjusted stagger and checked gear ratio." : "Baseline setup for the day.",
           nextTime: runIndex === 3 ? "Save as current baseline." : "Watch entry balance and tire growth."
@@ -3057,7 +3159,7 @@
       $(field).addEventListener("input", updateGearRatio);
       $(field).addEventListener("change", updateGearRatio);
     });
-    $("carId").addEventListener("change", () => renderEngineOptions());
+    $("carId").addEventListener("change", () => renderEngineOptions(""));
     $("engineId").addEventListener("change", syncEngineTypeFromInstalled);
 
     $("sessionList").addEventListener("click", (event) => {
