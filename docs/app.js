@@ -1077,12 +1077,14 @@ function renderTracks() {
 
 function renderTrackMemory() {
   const content = $("trackMemoryContent");
+  const help = document.querySelector(".track-memory-help");
   if (!content) return;
 
   const carId = $("carId")?.value || "";
   const trackId = $("trackId")?.value || "";
   const selectedTrack = trackName(trackId, $("track")?.value || "");
   if (!carId || !trackId) {
+    help?.classList.add("hidden");
     content.className = "empty";
     content.innerHTML = "Choose a car and track to see prior setups.";
     return;
@@ -1090,11 +1092,13 @@ function renderTrackMemory() {
 
   const memorySessions = currentTrackMemorySessions();
   if (!memorySessions.length) {
+    help?.classList.add("hidden");
     content.className = "empty";
     content.innerHTML = `No prior setups to load for ${escapeHtml(carName(carId))} at ${escapeHtml(selectedTrack)}.`;
     return;
   }
 
+  help?.classList.remove("hidden");
   const baseline = baselineMemorySession(memorySessions);
   const fastest = bestLapMemorySession(memorySessions);
   const bestFinish = bestFinishMemorySession(memorySessions);
