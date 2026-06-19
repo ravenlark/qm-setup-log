@@ -128,28 +128,41 @@
 
           <fieldset>
             <legend>Tires &amp; Suspension</legend>
+            <input id="lrHub" type="hidden" value="Locked">
+            <div class="radio-field radio-box" role="radiogroup" aria-label="LR Hub">
+              <span>LR Hub</span>
+              <div class="radio-row">
+                <label class="radio-option"><input name="lrHubChoice" type="radio" value="Locked" checked>Locked</label>
+                <label class="radio-option"><input name="lrHubChoice" type="radio" value="Unlocked">Unlocked</label>
+                <label class="radio-option"><input name="lrHubChoice" type="radio" value="Ratchet">Ratchet</label>
+              </div>
+            </div>
             <div class="corner-grid">
               <div class="corner-box">
                 <h2 class="corner-title">LF</h2>
                 <label>PSI<input id="lfPsi" type="number" min="0" step="0.1"></label>
+                <label>Offset (in)<input id="lfOffset" type="number" min="0" step="0.01" placeholder="0.00"></label>
                 <label>Spring Rate (lb/in)<input id="lfSpringRate" type="number" min="0" step="1" placeholder="150"></label>
                 <label>Shock Valving<input id="lfShockValving" placeholder="3 / 5"></label>
               </div>
               <div class="corner-box">
                 <h2 class="corner-title">RF</h2>
                 <label>PSI<input id="rfPsi" type="number" min="0" step="0.1"></label>
+                <label>Offset (in)<input id="rfOffset" type="number" min="0" step="0.01" placeholder="0.00"></label>
                 <label>Spring Rate (lb/in)<input id="rfSpringRate" type="number" min="0" step="1" placeholder="175"></label>
                 <label>Shock Valving<input id="rfShockValving" placeholder="4 / 6"></label>
               </div>
               <div class="corner-box">
                 <h2 class="corner-title">LR</h2>
                 <label>PSI<input id="lrPsi" type="number" min="0" step="0.1"></label>
+                <label>Offset (in)<input id="lrOffset" type="number" min="0" step="0.01" placeholder="0.00"></label>
                 <label>Spring Rate (lb/in)<input id="lrSpringRate" type="number" min="0" step="1" placeholder="125"></label>
                 <label>Shock Valving<input id="lrShockValving" placeholder="3 / 4"></label>
               </div>
               <div class="corner-box">
                 <h2 class="corner-title">RR</h2>
                 <label>PSI<input id="rrPsi" type="number" min="0" step="0.1"></label>
+                <label>Offset (in)<input id="rrOffset" type="number" min="0" step="0.01" placeholder="0.00"></label>
                 <label>Spring Rate (lb/in)<input id="rrSpringRate" type="number" min="0" step="1" placeholder="150"></label>
                 <label>Shock Valving<input id="rrShockValving" placeholder="4 / 5"></label>
               </div>

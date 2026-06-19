@@ -694,6 +694,50 @@ input[type="time"] {
   appearance: none;
 }
 
+.radio-field {
+  display: grid;
+  gap: 7px;
+  color: var(--muted);
+  font-size: .75rem;
+  font-weight: 850;
+}
+
+.radio-field > span {
+  color: var(--muted);
+}
+
+.radio-box {
+  margin-bottom: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fbfcfa;
+}
+
+.radio-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  align-items: center;
+}
+
+.radio-option {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 28px;
+  color: var(--ink);
+  font-size: .82rem;
+  font-weight: 750;
+}
+
+.radio-option input[type="radio"] {
+  width: auto;
+  height: auto;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+
 textarea {
   min-height: 86px;
   resize: vertical;

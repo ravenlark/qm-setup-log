@@ -15,8 +15,8 @@ const GEARBOX_RATIOS = {
 
 const fields = [
   "track", "trackId", "airTemp", "humidity", "trackTemp", "condition", "date", "sessionTime", "type", "engineId", "driver", "carId",
-  "lfPsi", "lfSpringRate", "lfShockValving", "rfPsi", "rfSpringRate", "rfShockValving",
-  "lrPsi", "lrSpringRate", "lrShockValving", "rrPsi", "rrSpringRate", "rrShockValving",
+  "lfPsi", "lfOffset", "lfSpringRate", "lfShockValving", "rfPsi", "rfOffset", "rfSpringRate", "rfShockValving",
+  "lrPsi", "lrOffset", "lrSpringRate", "lrShockValving", "lrHub", "rrPsi", "rrOffset", "rrSpringRate", "rrShockValving",
   "stagger", "tireNotes", "lfWeight", "rfWeight", "lrWeight", "rrWeight", "lfRideHeight",
   "rfRideHeight", "lrRideHeight", "rrRideHeight", "lfCamber", "rfCamber", "lfCaster",
   "rfCaster", "lfPanhardHoles", "rfPanhardHoles", "lrPanhardHoles", "rrPanhardHoles",
@@ -25,7 +25,8 @@ const fields = [
   "rfTireTemp", "lrTireTemp", "rrTireTemp", "handling", "changes", "nextTime"
 ];
 const decimalNumericFields = [
-  "airTemp", "humidity", "trackTemp", "lfPsi", "rfPsi", "lrPsi", "rrPsi", "stagger",
+  "airTemp", "humidity", "trackTemp", "lfPsi", "rfPsi", "lrPsi", "rrPsi", "lfOffset",
+  "rfOffset", "lrOffset", "rrOffset", "stagger",
   "lfWeight", "rfWeight", "lrWeight", "rrWeight", "lfRideHeight", "rfRideHeight",
   "lrRideHeight", "rrRideHeight", "leftWheelbase", "rightWheelbase", "lapTime"
 ];
@@ -444,6 +445,7 @@ function normalizeSession(session = {}) {
   ["lfCamber", "rfCamber", "lfCaster", "rfCaster"].forEach((field) => {
     normalized[field] = normalizeSignedNumberText(normalized[field]);
   });
+  normalized.lrHub = normalizeLrHub(normalized.lrHub);
 
   if (!normalized.startPosition && normalized.finish) normalized.endPosition = normalized.finish;
   if (!isPositionSession(normalized.type)) {
@@ -470,6 +472,13 @@ function splitPairValue(value = "") {
 
 function normalizeSignedNumberText(value = "") {
   return String(value || "").trim().replace(/^\+/, "");
+}
+
+function normalizeLrHub(value = "") {
+  const cleanValue = String(value || "").trim().toLowerCase();
+  if (cleanValue === "unlocked") return "Unlocked";
+  if (cleanValue === "ratchet" || cleanValue === "ratchet hub") return "Ratchet";
+  return "Locked";
 }
 
 function parseNumber(value) {
@@ -555,6 +564,19 @@ function syncEngineTypeFromInstalled() {
   updateGearRatio();
 }
 
+function syncLrHubFromRadios() {
+  const selected = document.querySelector('input[name="lrHubChoice"]:checked');
+  $("lrHub").value = normalizeLrHub(selected?.value);
+}
+
+function syncLrHubRadios() {
+  const value = normalizeLrHub($("lrHub")?.value);
+  $("lrHub").value = value;
+  document.querySelectorAll('input[name="lrHubChoice"]').forEach((radio) => {
+    radio.checked = radio.value === value;
+  });
+}
+
 function valuesDiffer(current, prior) {
   return String(current || "").trim() !== String(prior || "").trim();
 }
@@ -585,6 +607,10 @@ function comparisonRows(runA = {}, runB = {}) {
     ["RF PSI", "rfPsi"],
     ["LR PSI", "lrPsi"],
     ["RR PSI", "rrPsi"],
+    ["LF Offset", "lfOffset"],
+    ["RF Offset", "rfOffset"],
+    ["LR Offset", "lrOffset"],
+    ["RR Offset", "rrOffset"],
     ["LF Spring", "lfSpringRate"],
     ["RF Spring", "rfSpringRate"],
     ["LR Spring", "lrSpringRate"],
@@ -592,6 +618,7 @@ function comparisonRows(runA = {}, runB = {}) {
     ["LF Shock", "lfShockValving"],
     ["RF Shock", "rfShockValving"],
     ["LR Shock", "lrShockValving"],
+    ["LR Hub", "lrHub"],
     ["RR Shock", "rrShockValving"],
     ["Stagger", "stagger"],
     ["LF Weight", "lfWeight"],
@@ -1026,6 +1053,7 @@ function fillForm(session = {}) {
   fields.forEach((field) => {
     $(field).value = session[field] || "";
   });
+  syncLrHubRadios();
   renderTrackOptions();
   $("trackId").value = tracks.some((track) => track.id === session.trackId) ? session.trackId : "";
   $("track").value = trackName($("trackId").value, session.track);
@@ -1039,6 +1067,7 @@ function fillForm(session = {}) {
 
 function readForm() {
   syncEngineTypeFromInstalled();
+  syncLrHubFromRadios();
   updateGearRatio();
   const session = {
     id: $("entryId").value || crypto.randomUUID(),
@@ -1112,6 +1141,8 @@ function clearForm({ clearDraft = true } = {}) {
   suppressDraftSave = true;
   $("setupForm").reset();
   $("entryId").value = "";
+  $("lrHub").value = "Locked";
+  syncLrHubRadios();
   $("trackId").value = "";
   $("date").value = localDateValue();
   $("sessionTime").value = new Date().toTimeString().slice(0, 5);
@@ -1464,15 +1495,20 @@ function seedSamples() {
       trackTemp: String(90 + runIndex * 4),
       condition: ["Green early", "Rubbered bottom", "Dusty exit", "Fast middle"][(carIndex + runIndex) % 4],
       lfPsi: (9.5 + runIndex * 0.2).toFixed(1),
+      lfOffset: (0.25 + carIndex * 0.02).toFixed(2),
       lfSpringRate: String(145 + carIndex * 5),
       lfShockValving: "3 / 5",
       rfPsi: (12.0 + runIndex * 0.3).toFixed(1),
+      rfOffset: (0.38 + runIndex * 0.02).toFixed(2),
       rfSpringRate: String(170 + carIndex * 5),
       rfShockValving: runIndex > 1 ? "4 / 7" : "4 / 6",
       lrPsi: (10.0 + carIndex * 0.2).toFixed(1),
+      lrOffset: (0.18 + carIndex * 0.02).toFixed(2),
       lrSpringRate: String(125 + carIndex * 5),
       lrShockValving: "3 / 4",
+      lrHub: runIndex === 2 ? "Ratchet" : "Locked",
       rrPsi: (11.8 + runIndex * 0.2).toFixed(1),
+      rrOffset: (0.32 + runIndex * 0.02).toFixed(2),
       rrSpringRate: String(150 + carIndex * 5),
       rrShockValving: "4 / 5",
       stagger: (1.35 + runIndex * 0.15 + carIndex * 0.05).toFixed(2),
@@ -1696,6 +1732,9 @@ $("clearCarButton").addEventListener("click", clearCarForm);
 $("clearEngineButton").addEventListener("click", clearEngineForm);
 $("clearTrackButton").addEventListener("click", clearTrackForm);
 $("type").addEventListener("change", updatePositionVisibility);
+document.querySelectorAll('input[name="lrHubChoice"]').forEach((radio) => {
+  radio.addEventListener("change", syncLrHubFromRadios);
+});
 $("exportJson").addEventListener("click", exportJson);
 $("exportCsv").addEventListener("click", exportCsv);
 $("importButton").addEventListener("click", () => $("importFile").click());
