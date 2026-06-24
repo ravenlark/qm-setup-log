@@ -25,6 +25,10 @@ const fields = [
   "startPosition", "endPosition", "averageRpm", "averageDrops", "totalLaps", "lfTireTemp",
   "rfTireTemp", "lrTireTemp", "rrTireTemp", "handling", "changes", "nextTime"
 ];
+const resultFields = [
+  "lapTime", "startPosition", "endPosition", "averageRpm", "averageDrops", "totalLaps",
+  "lfTireTemp", "rfTireTemp", "lrTireTemp", "rrTireTemp"
+];
 const decimalNumericFields = [
   "airTemp", "humidity", "trackTemp", "lfPsi", "rfPsi", "lrPsi", "rrPsi", "lfOffset",
   "rfOffset", "lrOffset", "rrOffset", "stagger",
@@ -1653,22 +1657,20 @@ function duplicateSession(id) {
 }
 
 function startFromSession(session, toastMessage = "Copied setup into a new entry.") {
-  fillForm({
+  const setupOnlySession = {
     ...session,
     id: "",
     date: localDateValue(),
     sessionTime: new Date().toTimeString().slice(0, 5),
     type: "Practice",
-    lapTime: "",
-    startPosition: "",
-    endPosition: "",
-    averageRpm: "",
-    averageDrops: "",
-    totalLaps: "",
     handling: "",
     changes: "",
     nextTime: session.nextTime || ""
+  };
+  resultFields.forEach((field) => {
+    setupOnlySession[field] = "";
   });
+  fillForm(setupOnlySession);
   setTab("sessions");
   $("trackId").focus({ preventScroll: true });
   if (toastMessage) showToast(toastMessage);
