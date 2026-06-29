@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { Copy, Pencil, Plus, Save, Search, Star, Trash2 } from "lucide-react";
+import { Copy, Pencil, Plus, Save, Search, Star, Trash2, X } from "lucide-react";
 import { fetchCars, type RaceCar } from "../data/cars";
 import {
   fetchActiveEngineAssignments,
@@ -99,7 +99,6 @@ type SessionsViewProps = {
 };
 
 export function SessionsView({ supabase, userId }: SessionsViewProps) {
-  const sessionFormRef = useRef<HTMLFormElement>(null);
   const [cars, setCars] = useState<RaceCar[]>([]);
   const [engines, setEngines] = useState<EngineWithType[]>([]);
   const [tracks, setTracks] = useState<TrackWithNotes[]>([]);
@@ -109,6 +108,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
   const [editingSessionId, setEditingSessionId] = useState("");
   const [expandedSessionId, setExpandedSessionId] = useState("");
   const [sessionFormNotice, setSessionFormNotice] = useState("");
+  const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
   const [sessionSearch, setSessionSearch] = useState("");
   const [sessionCarFilter, setSessionCarFilter] = useState("all");
   const [sessionTypeFilter, setSessionTypeFilter] = useState("all");
@@ -266,6 +266,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
       );
       setEditingSessionId("");
       setSessionFormNotice("");
+      setIsSessionModalOpen(false);
       setSessionForm({
         ...emptySessionForm,
         car_id: sessionForm.car_id,
@@ -287,19 +288,19 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
     setEditingSessionId(session.id);
     setSessionForm(sessionToInput(session));
     setSessionFormNotice("Session loaded for editing.");
+    setIsSessionModalOpen(true);
     setMessage("Editing session.");
-    scrollToSessionForm();
   }
 
   function handleCopySession(session: SetupSession) {
     setEditingSessionId("");
     setSessionForm(sessionToInput(session));
     setSessionFormNotice("Session copied into a new entry.");
+    setIsSessionModalOpen(true);
     setMessage("Session copied into a new entry.");
-    scrollToSessionForm();
   }
 
-  function cancelEditSession() {
+  function startNewSession() {
     setEditingSessionId("");
     setSessionFormNotice("");
     setSessionForm({
@@ -310,15 +311,21 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
       driver: sessionForm.driver,
     });
     setMessage("");
+    setIsSessionModalOpen(true);
   }
 
-  function scrollToSessionForm() {
-    window.requestAnimationFrame(() => {
-      sessionFormRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
+  function closeSessionModal() {
+    setEditingSessionId("");
+    setSessionFormNotice("");
+    setSessionForm({
+      ...emptySessionForm,
+      car_id: sessionForm.car_id,
+      engine_id: sessionForm.engine_id,
+      track_id: sessionForm.track_id,
+      driver: sessionForm.driver,
     });
+    setMessage("");
+    setIsSessionModalOpen(false);
   }
 
   async function handleToggleBaseline(session: SetupSession) {
@@ -364,7 +371,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
     try {
       await deleteSession(supabase, session.id);
       setSessions((current) => current.filter((item) => item.id !== session.id));
-      if (editingSessionId === session.id) cancelEditSession();
+      if (editingSessionId === session.id) closeSessionModal();
       if (expandedSessionId === session.id) setExpandedSessionId("");
       setMessage("Session removed.");
     } catch (error) {
@@ -384,7 +391,18 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
             <span className="eyebrow">Sessions</span>
             <h2>Session History</h2>
           </div>
-          <span className="count-pill">{visibleSessions.length}</span>
+          <div className="panel-actions">
+            <span className="count-pill">{visibleSessions.length}</span>
+            <button
+              className="primary-button"
+              disabled={status === "saving"}
+              type="button"
+              onClick={startNewSession}
+            >
+              <Plus size={18} />
+              New Session
+            </button>
+          </div>
         </div>
 
         <div className="session-history-filters">
@@ -460,18 +478,15 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
         )}
       </div>
 
-      <form ref={sessionFormRef} className="session-form" onSubmit={handleSaveSession}>
-        <div className="panel form-panel">
-          <div className="panel-header">
-            <div>
-              <span className="eyebrow">
-                {editingSessionId ? "Edit Session" : "New Session"}
-              </span>
-              <h2>{editingSessionId ? "Update Entry" : "Setup Entry"}</h2>
-            </div>
-            {editingSessionId ? <Save size={20} /> : <Plus size={20} />}
-          </div>
-
+      {isSessionModalOpen ? (
+        <Modal
+          eyebrow={editingSessionId ? "Edit Session" : "New Session"}
+          icon={editingSessionId ? <Save size={20} /> : <Plus size={20} />}
+          title={editingSessionId ? "Update Entry" : "Setup Entry"}
+          onClose={closeSessionModal}
+        >
+          <form className="session-form session-modal-form" onSubmit={handleSaveSession}>
+        <div className="form-panel">
           {sessionFormNotice ? (
             <div className="form-populated-banner">{sessionFormNotice}</div>
           ) : null}
@@ -909,16 +924,14 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
           </fieldset>
 
           <div className="button-row">
-            {editingSessionId ? (
-              <button
-                className="secondary-button"
-                disabled={status === "saving"}
-                type="button"
-                onClick={cancelEditSession}
-              >
-                Cancel
-              </button>
-            ) : null}
+            <button
+              className="secondary-button"
+              disabled={status === "saving"}
+              type="button"
+              onClick={closeSessionModal}
+            >
+              Cancel
+            </button>
             <button
               className="primary-button"
               disabled={status === "saving"}
@@ -932,6 +945,8 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
           {message ? <div className="inline-message">{message}</div> : null}
         </div>
       </form>
+        </Modal>
+      ) : null}
     </section>
   );
 }
@@ -1152,6 +1167,50 @@ function SessionMiniStat({ label, value }: { label: string; value: string }) {
     <div className="session-mini-stat">
       <span>{label}</span>
       <strong>{value}</strong>
+    </div>
+  );
+}
+
+function Modal({
+  children,
+  eyebrow,
+  icon,
+  onClose,
+  title,
+}: {
+  children: ReactNode;
+  eyebrow: string;
+  icon: ReactNode;
+  onClose: () => void;
+  title: string;
+}) {
+  return (
+    <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
+      <section
+        aria-modal="true"
+        className="modal-panel session-modal-panel"
+        role="dialog"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="panel-header">
+          <div>
+            <span className="eyebrow">{eyebrow}</span>
+            <h2>{title}</h2>
+          </div>
+          <div className="panel-actions">
+            {icon}
+            <button
+              aria-label="Close dialog"
+              className="icon-button"
+              type="button"
+              onClick={onClose}
+            >
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+        {children}
+      </section>
     </div>
   );
 }

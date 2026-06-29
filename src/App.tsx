@@ -1,18 +1,23 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
   BarChart3,
   Car,
+  ChevronDown,
   ClipboardList,
   Flag,
   LogIn,
   LogOut,
+  Menu,
   Settings,
+  User,
+  X,
 } from "lucide-react";
 import { GarageView } from "./components/GarageView";
+import { ReportsView } from "./components/ReportsView";
 import { SessionsView } from "./components/SessionsView";
 import { TracksView } from "./components/TracksView";
-import { ensureAccountSetup } from "./lib/account";
+import { ensureAccountSetup, type UserProfile } from "./lib/account";
 import { supabase, supabaseConfig } from "./lib/supabase";
 
 type AppTab = "sessions" | "garage" | "tracks" | "reports";
@@ -54,6 +59,9 @@ export function App() {
   const [accountStatus, setAccountStatus] = useState<
     "idle" | "loading" | "ready" | "error"
   >("idle");
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [authError, setAuthError] = useState("");
   const isSupabaseConfigured = Boolean(
     supabaseConfig.url && supabaseConfig.publishableKey,
@@ -68,6 +76,7 @@ export function App() {
       "Signed in"
     );
   }, [session]);
+  const teamLabel = profile?.team_name.trim() || "Team name not set";
 
   useEffect(() => {
     if (!supabase) {
@@ -85,6 +94,9 @@ export function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
       setSession(nextSession);
+      setProfile(null);
+      setAccountMenuOpen(false);
+      setMobileMenuOpen(false);
       setAuthError("");
       setAuthStatus("ready");
     });
@@ -95,6 +107,7 @@ export function App() {
   useEffect(() => {
     if (!supabase || !session?.user) {
       setAccountStatus("idle");
+      setProfile(null);
       return;
     }
 
@@ -102,8 +115,9 @@ export function App() {
     setAccountStatus("loading");
 
     ensureAccountSetup(supabase, session.user)
-      .then(() => {
+      .then((nextProfile) => {
         if (!isCurrent) return;
+        setProfile(nextProfile);
         setAccountStatus("ready");
         setAuthError("");
       })
@@ -137,17 +151,36 @@ export function App() {
   async function signOut() {
     if (!supabase) return;
     setAuthError("");
+    setAccountMenuOpen(false);
+    setMobileMenuOpen(false);
     const { error } = await supabase.auth.signOut();
     if (error) setAuthError(error.message);
+  }
+
+  function openProfilePlaceholder() {
+    setAccountMenuOpen(false);
+    setMobileMenuOpen(false);
   }
 
   function renderWorkspaceContent() {
     if (!session) {
       return (
         <IntroPanel
-          body="Sign in with Google to create your team profile, initialize your Free plan, and start saving setup data to Supabase."
-          eyebrow="Sign In"
-          title="Setup Log is ready for your account."
+          body={
+            <>
+              Keep track of your cars, engine maintenance, car setups, favorite
+              tracks, and more.
+              <br />
+              <br />
+              Compare your sessions from one race day to the next and see what
+              set you back or what put you ahead of the pack.
+              <br />
+              <br />
+              Sign up today and get started for free!
+            </>
+          }
+          eyebrow=""
+          title="Are you ready to improve your QM racing program?"
         />
       );
     }
@@ -178,7 +211,7 @@ export function App() {
           <TracksView supabase={supabase} userId={session.user.id} />
         </div>
         <div className="tab-panel" hidden={activeTab !== "reports"}>
-          <IntroPanel {...comingSoon.reports} />
+          <ReportsView supabase={supabase} userId={session.user.id} />
         </div>
       </>
     );
@@ -199,10 +232,42 @@ export function App() {
         <div className="auth-cluster">
           {session ? (
             <>
-              <span className="user-pill">{userLabel}</span>
-              <button className="auth-button" type="button" onClick={signOut}>
-                <LogOut size={18} />
-                Sign out
+              <div className="desktop-account-menu">
+                <button
+                  aria-expanded={accountMenuOpen}
+                  className="account-menu-button"
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    setAccountMenuOpen((open) => !open);
+                  }}
+                >
+                  <span>
+                    <strong>{userLabel}</strong>
+                    <small>{teamLabel}</small>
+                  </span>
+                  <ChevronDown size={18} />
+                </button>
+                {accountMenuOpen ? (
+                  <AccountMenuContent
+                    teamLabel={teamLabel}
+                    userLabel={userLabel}
+                    onProfile={openProfilePlaceholder}
+                    onSignOut={signOut}
+                  />
+                ) : null}
+              </div>
+              <button
+                aria-expanded={mobileMenuOpen}
+                aria-label="Open menu"
+                className="mobile-menu-button"
+                type="button"
+                onClick={() => {
+                  setAccountMenuOpen(false);
+                  setMobileMenuOpen((open) => !open);
+                }}
+              >
+                {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
               </button>
             </>
           ) : (
@@ -217,21 +282,33 @@ export function App() {
             </button>
           )}
         </div>
+        {session && mobileMenuOpen ? (
+          <div className="mobile-account-menu">
+            <AccountMenuContent
+              teamLabel={teamLabel}
+              userLabel={userLabel}
+              onProfile={openProfilePlaceholder}
+              onSignOut={signOut}
+            />
+          </div>
+        ) : null}
       </header>
 
-      <nav className="tabs" aria-label="Main views">
-        {tabs.map(({ id, label, icon: Icon }) => (
-          <button
-            className={activeTab === id ? "tab active" : "tab"}
-            key={id}
-            type="button"
-            onClick={() => setActiveTab(id)}
-          >
-            <Icon size={17} />
-            {label}
-          </button>
-        ))}
-      </nav>
+      {session ? (
+        <nav className="tabs" aria-label="Main views">
+          {tabs.map(({ id, label, icon: Icon }) => (
+            <button
+              className={activeTab === id ? "tab active" : "tab"}
+              key={id}
+              type="button"
+              onClick={() => setActiveTab(id)}
+            >
+              <Icon size={17} />
+              {label}
+            </button>
+          ))}
+        </nav>
+      ) : null}
 
       <section className="workspace">
         {authError ? <p className="auth-error">{authError}</p> : null}
@@ -241,12 +318,41 @@ export function App() {
   );
 }
 
+function AccountMenuContent({
+  onProfile,
+  onSignOut,
+  teamLabel,
+  userLabel,
+}: {
+  onProfile: () => void;
+  onSignOut: () => void;
+  teamLabel: string;
+  userLabel: string;
+}) {
+  return (
+    <div className="account-menu-content">
+      <div className="account-menu-heading">
+        <strong>{userLabel}</strong>
+        <span>{teamLabel}</span>
+      </div>
+      <button type="button" onClick={onProfile}>
+        <User size={17} />
+        Profile
+      </button>
+      <button type="button" onClick={onSignOut}>
+        <LogOut size={17} />
+        Log Out
+      </button>
+    </div>
+  );
+}
+
 function IntroPanel({
   body,
   eyebrow,
   title,
 }: {
-  body: string;
+  body: ReactNode;
   eyebrow: string;
   title: string;
 }) {

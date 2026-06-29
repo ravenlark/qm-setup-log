@@ -31,11 +31,16 @@ button {
 }
 
 .topbar {
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
   margin-bottom: 18px;
+  padding: 12px;
+  border: 1px solid #d8e1d6;
+  border-radius: 8px;
+  background: #ffffff;
 }
 
 .brand {
@@ -98,18 +103,112 @@ button {
   min-width: 0;
 }
 
-.user-pill {
-  max-width: 280px;
-  overflow: hidden;
-  padding: 9px 12px;
+.desktop-account-menu {
+  position: relative;
+}
+
+.account-menu-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  max-width: 320px;
+  min-height: 44px;
+  padding: 6px 10px 6px 12px;
   border: 1px solid #d8e1d6;
   border-radius: 8px;
   color: #1f3526;
   background: #eef5ec;
+  cursor: pointer;
+}
+
+.account-menu-button span,
+.account-menu-heading {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+  text-align: left;
+}
+
+.account-menu-button strong,
+.account-menu-heading strong {
+  overflow: hidden;
+  color: #111827;
   font-size: 0.92rem;
+  font-weight: 900;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.account-menu-button small,
+.account-menu-heading span {
+  overflow: hidden;
+  color: #5f6f62;
+  font-size: 0.82rem;
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.account-menu-content {
+  display: grid;
+  gap: 4px;
+  min-width: 240px;
+  padding: 8px;
+  border: 1px solid #d8e1d6;
+  border-radius: 8px;
+  background: #ffffff;
+  box-shadow: 0 16px 36px rgb(17 24 39 / 0.14);
+}
+
+.desktop-account-menu .account-menu-content {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  right: 0;
+}
+
+.account-menu-heading {
+  padding: 8px 10px 10px;
+  border-bottom: 1px solid #e7ede5;
+  margin-bottom: 4px;
+}
+
+.account-menu-content button,
+.mobile-menu-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  min-height: 40px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #1e2c20;
+  cursor: pointer;
+  font: inherit;
+  font-weight: 800;
+}
+
+.account-menu-content button {
+  justify-content: flex-start;
+  padding: 0 10px;
+  text-align: left;
+}
+
+.account-menu-content button:hover,
+.account-menu-content button:focus-visible {
+  background: #f5f7f4;
+}
+
+.mobile-menu-button {
+  display: none;
+  width: 42px;
+  justify-content: center;
+  border: 1px solid #cbd7c9;
+  background: #ffffff;
+}
+
+.mobile-account-menu {
+  display: none;
 }
 
 .tabs {
@@ -243,12 +342,16 @@ button {
 }
 
 .tracks-layout,
-.garage-layout,
-.sessions-layout {
+.garage-layout {
   display: grid;
   grid-template-columns: minmax(280px, 360px) minmax(0, 1fr);
   gap: 16px;
   align-items: start;
+}
+
+.sessions-layout {
+  display: grid;
+  gap: 16px;
 }
 
 .garage-card-layout {
@@ -261,6 +364,166 @@ button {
 .track-card-layout {
   display: grid;
   gap: 16px;
+}
+
+.reports-panel {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+}
+
+.report-selectors {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.report-selectors label {
+  display: grid;
+  gap: 6px;
+  color: #405343;
+  font-size: 0.88rem;
+  font-weight: 800;
+}
+
+.report-selectors select {
+  color: #111827;
+  font-size: 1rem;
+  font-weight: 900;
+}
+
+.report-wide-field {
+  grid-column: 1 / -1;
+}
+
+.report-run-meta {
+  margin: 0;
+  color: #647268;
+  font-size: 0.95rem;
+}
+
+.report-summary {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid #f0c76f;
+  border-left: 5px solid #c98218;
+  border-radius: 8px;
+  background: #fff7df;
+}
+
+.report-summary h3,
+.report-summary p {
+  margin: 0;
+}
+
+.report-summary h3 {
+  color: #111827;
+  font-size: 1.05rem;
+}
+
+.report-summary p {
+  color: #647268;
+  font-weight: 900;
+}
+
+.report-diff-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.report-diff-chips span {
+  display: inline-flex;
+  min-height: 34px;
+  align-items: center;
+  padding: 5px 10px;
+  border: 1px solid #f0c76f;
+  border-radius: 8px;
+  color: #833f08;
+  background: #ffffff;
+  font-size: 0.88rem;
+  font-weight: 900;
+}
+
+.report-table-section {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding-top: 4px;
+  border-top: 1px solid #d8e1d6;
+}
+
+.report-table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.report-table th,
+.report-table td {
+  padding: 9px 8px;
+  border-bottom: 1px solid #d8e1d6;
+  vertical-align: middle;
+  overflow-wrap: anywhere;
+}
+
+.report-table thead th {
+  color: #647268;
+  font-size: 0.7rem;
+  font-weight: 900;
+  text-align: left;
+  text-transform: uppercase;
+}
+
+.report-table thead th:first-child {
+  width: 42%;
+}
+
+.report-table thead th:nth-child(2),
+.report-table thead th:nth-child(3) {
+  width: 29%;
+}
+
+.report-table thead th:nth-child(2),
+.report-table thead th:nth-child(3),
+.report-table td {
+  text-align: right;
+}
+
+.report-table tbody th {
+  color: #647268;
+  font-size: 0.82rem;
+  font-weight: 900;
+  text-align: left;
+}
+
+.report-table tbody tr.changed th,
+.report-table tbody tr.changed td {
+  border-top: 1px solid #f0c76f;
+  border-bottom: 1px solid #f0c76f;
+  background: #fff7df;
+}
+
+.report-table tbody tr.changed th:first-child {
+  border-left: 1px solid #f0c76f;
+  border-radius: 8px 0 0 8px;
+}
+
+.report-table tbody tr.changed td:last-child {
+  border-right: 1px solid #f0c76f;
+  border-radius: 0 8px 8px 0;
+}
+
+.report-table td {
+  color: #111827;
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.report-table tbody tr.changed td {
+  color: #833f08;
 }
 
 .track-list-controls {
@@ -672,6 +935,11 @@ textarea {
 
 .session-form {
   min-width: 0;
+}
+
+.session-modal-panel {
+  width: min(980px, 100%);
+  max-height: min(820px, calc(100vh - 36px));
 }
 
 .session-form .form-panel {
@@ -1147,23 +1415,38 @@ textarea {
     padding-top: 14px;
   }
 
-  .topbar,
   .intro-panel {
     grid-template-columns: 1fr;
   }
 
   .topbar {
-    align-items: stretch;
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
+    flex-wrap: wrap;
   }
 
   .auth-cluster {
-    align-items: stretch;
-    flex-direction: column;
+    align-items: center;
+    flex-direction: row;
   }
 
-  .user-pill {
-    max-width: none;
+  .desktop-account-menu {
+    display: none;
+  }
+
+  .mobile-menu-button {
+    display: inline-flex;
+  }
+
+  .mobile-account-menu {
+    display: block;
+    flex-basis: 100%;
+    width: 100%;
+  }
+
+  .mobile-account-menu .account-menu-content {
+    width: 100%;
+    box-shadow: none;
   }
 
   .tabs {
