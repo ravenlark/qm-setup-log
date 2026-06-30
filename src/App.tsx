@@ -76,15 +76,274 @@ const comingSoon = {
   },
 };
 
+async function signInWithGoogleRedirect(redirectPath: string) {
+  if (!supabase) {
+    throw new Error("Supabase is not configured yet.");
+  }
+
+  const { error } = await supabase.auth.signInWithOAuth({
+    provider: "google",
+    options: {
+      redirectTo: `${window.location.origin}${redirectPath}`,
+    },
+  });
+  if (error) throw error;
+}
+
 export function App() {
   return (
     <Routes>
-      <Route path="/" element={<Navigate to="/app/sessions" replace />} />
+      <Route path="/" element={<HomePage />} />
       <Route path="/app" element={<Navigate to="/app/sessions" replace />} />
       <Route path="/app/:workspaceView" element={<WorkspaceApp />} />
+      <Route path="/pricing" element={<PricingPage />} />
       <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
+  );
+}
+
+function HomePage() {
+  const navigate = useNavigate();
+  const [homeAuthStatus, setHomeAuthStatus] = useState<"loading" | "public">(
+    supabase ? "loading" : "public",
+  );
+  const [homeAuthError, setHomeAuthError] = useState("");
+  const isSupabaseConfigured = Boolean(
+    supabaseConfig.url && supabaseConfig.publishableKey,
+  );
+
+  useEffect(() => {
+    if (!supabase) return;
+
+    let isCurrent = true;
+
+    supabase.auth.getSession().then(({ data }) => {
+      if (!isCurrent) return;
+      if (data.session) {
+        navigate("/app/sessions", { replace: true });
+        return;
+      }
+      setHomeAuthStatus("public");
+    });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [navigate]);
+
+  async function signInWithGoogle() {
+    setHomeAuthError("");
+    try {
+      await signInWithGoogleRedirect("/app/sessions");
+    } catch (error) {
+      setHomeAuthError((error as Error).message);
+    }
+  }
+
+  if (homeAuthStatus === "loading") {
+    return (
+      <main className="app-shell home-shell">
+        <LoadingPanel message="Loading My Setup Log..." />
+      </main>
+    );
+  }
+
+  return (
+    <main className="app-shell home-shell">
+      <header className="topbar home-topbar">
+        <Link className="brand brand-link" to="/">
+          <div className="brand-mark" aria-hidden="true">
+            <Settings size={20} />
+          </div>
+          <div>
+            <h1>My Setup Log</h1>
+            <p>Quarter midget race notes</p>
+          </div>
+        </Link>
+        <button
+          className="primary-button"
+          disabled={!isSupabaseConfigured}
+          type="button"
+          onClick={signInWithGoogle}
+        >
+          <LogIn size={18} />
+          Sign in with Google
+        </button>
+      </header>
+
+      {homeAuthError ? <p className="auth-error">{homeAuthError}</p> : null}
+
+      <section className="home-hero">
+        <div className="home-hero-copy">
+          <span className="eyebrow">Quarter midget setup tracking</span>
+          <h2>Keep every car, track, engine, and race-day note in one place.</h2>
+          <p>
+            My Setup Log helps teams organize setup changes, maintenance work,
+            track notes, session results, and next-time reminders so the useful
+            details do not disappear after race day.
+          </p>
+          <div className="home-actions">
+            <button
+              className="primary-button"
+              disabled={!isSupabaseConfigured}
+              type="button"
+              onClick={signInWithGoogle}
+            >
+              <LogIn size={18} />
+              Get started
+            </button>
+            <Link className="secondary-button" to="/pricing">
+              Pricing
+            </Link>
+          </div>
+        </div>
+        <div className="home-snapshot" aria-label="Setup log preview">
+          <div className="snapshot-header">
+            <span>Blue car</span>
+            <strong>Practice</strong>
+          </div>
+          <div className="snapshot-grid">
+            <div>
+              <span>Track</span>
+              <strong>River City</strong>
+            </div>
+            <div>
+              <span>Best Lap</span>
+              <strong>8.742</strong>
+            </div>
+            <div>
+              <span>Gear</span>
+              <strong>35 / 28</strong>
+            </div>
+            <div>
+              <span>Stagger</span>
+              <strong>1.750</strong>
+            </div>
+          </div>
+          <p>
+            Tight center, better off after RF pressure change. Check tire growth
+            before the next heat.
+          </p>
+        </div>
+      </section>
+
+      <section className="home-feature-grid" aria-label="Highlights">
+        <div>
+          <ClipboardList size={22} />
+          <h3>Session history</h3>
+          <p>Capture conditions, setup choices, lap results, and notes.</p>
+        </div>
+        <div>
+          <Car size={22} />
+          <h3>Garage records</h3>
+          <p>Track cars, installed engines, and maintenance reminders.</p>
+        </div>
+        <div>
+          <Flag size={22} />
+          <h3>Track memory</h3>
+          <p>Keep facility notes and setup tendencies close at hand.</p>
+        </div>
+      </section>
+
+      <footer className="site-footer">
+        <Link to="/privacy-policy">Privacy Policy</Link>
+      </footer>
+    </main>
+  );
+}
+
+function PricingPage() {
+  const [pricingAuthError, setPricingAuthError] = useState("");
+
+  async function startPlan(redirectPath: string) {
+    setPricingAuthError("");
+    try {
+      await signInWithGoogleRedirect(redirectPath);
+    } catch (error) {
+      setPricingAuthError((error as Error).message);
+    }
+  }
+
+  return (
+    <main className="app-shell pricing-shell">
+      <header className="topbar home-topbar">
+        <Link className="brand brand-link" to="/">
+          <div className="brand-mark" aria-hidden="true">
+            <Settings size={20} />
+          </div>
+          <div>
+            <h1>My Setup Log</h1>
+            <p>Quarter midget race notes</p>
+          </div>
+        </Link>
+        <Link className="primary-button" to="/app/sessions">
+          Open app
+        </Link>
+      </header>
+
+      {pricingAuthError ? <p className="auth-error">{pricingAuthError}</p> : null}
+
+      <section className="pricing-header">
+        <span className="eyebrow">Pricing</span>
+        <h2>Start free. Upgrade when your notebook gets serious.</h2>
+        <p>
+          Keep a simple race-day log for free, or unlock the full setup workflow
+          for one team with the Senior plan.
+        </p>
+      </section>
+
+      <section className="pricing-grid" aria-label="Plans">
+        <article className="pricing-card">
+          <div>
+            <p className="pricing-plan">Rookie</p>
+            <h3>Free</h3>
+            <p className="pricing-copy">
+              A simple way to get started tracking the essentials.
+            </p>
+          </div>
+          <ul>
+            <li>Save detailed race-day notes</li>
+            <li>Compare setups to see what worked and what didn't</li>
+            <li>Keep notes on your favorite tracks</li>
+            <li>Limited to one car and engine</li>
+          </ul>
+          <button
+            className="secondary-button"
+            type="button"
+            onClick={() => startPlan("/app/garage")}
+          >
+            Start Free
+          </button>
+        </article>
+
+        <article className="pricing-card pricing-card-featured">
+          <div>
+            <p className="pricing-plan">Senior</p>
+            <h3>$3.99<span>/month</span></h3>
+            <p className="pricing-copy">
+              For teams ready to keep deeper setup history and comparisons. Get everything from the Rookie plan PLUS:
+            </p>
+          </div>
+          <ul>
+            <li>Unlimited cars and engines</li>
+            <li>Log engine maintenance records</li>
+            <li>Add custom tracks - great for parking lot races</li>
+          </ul>
+          <button
+            className="primary-button"
+            type="button"
+            onClick={() => startPlan("/app/profile")}
+          >
+            Choose Senior
+          </button>
+        </article>
+      </section>
+
+      <footer className="site-footer">
+        <Link to="/privacy-policy">Privacy Policy</Link>
+      </footer>
+    </main>
   );
 }
 
@@ -148,7 +407,7 @@ function WorkspaceApp() {
       setMobileMenuOpen(false);
       setAuthError("");
       setAuthStatus("ready");
-      if (!nextSession) navigate("/app/sessions", { replace: true });
+      if (!nextSession) navigate("/", { replace: true });
     });
 
     return () => subscription.unsubscribe();
@@ -204,19 +463,15 @@ function WorkspaceApp() {
   }, [profile?.logo_path]);
 
   async function signInWithGoogle() {
-    if (!supabase) {
-      setAuthError("Supabase is not configured yet.");
-      return;
-    }
-
     setAuthError("");
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: {
-        redirectTo: window.location.origin,
-      },
-    });
-    if (error) setAuthError(error.message);
+    const appRedirectPath = window.location.pathname.startsWith("/app/")
+      ? window.location.pathname
+      : "/app/sessions";
+    try {
+      await signInWithGoogleRedirect(appRedirectPath);
+    } catch (error) {
+      setAuthError((error as Error).message);
+    }
   }
 
   async function signOut() {
@@ -226,7 +481,7 @@ function WorkspaceApp() {
     setMobileMenuOpen(false);
     const { error } = await supabase.auth.signOut();
     if (error) setAuthError(error.message);
-    else navigate("/app/sessions");
+    else navigate("/");
   }
 
   function openProfilePlaceholder() {
@@ -245,25 +500,7 @@ function WorkspaceApp() {
     }
 
     if (!session) {
-      return (
-        <IntroPanel
-          body={
-            <>
-              Keep track of your cars, engine maintenance, car setups, favorite
-              tracks, and more.
-              <br />
-              <br />
-              Compare your sessions from one race day to the next and see what
-              set you back or what put you ahead of the pack.
-              <br />
-              <br />
-              Sign up today and get started for free!
-            </>
-          }
-          eyebrow=""
-          title="Are you ready to improve your QM racing program?"
-        />
-      );
+      return <Navigate to="/" replace />;
     }
 
     if (accountStatus === "error") {
@@ -426,7 +663,7 @@ function PrivacyPolicyPage() {
   return (
     <main className="app-shell privacy-shell">
       <header className="topbar">
-        <Link className="brand brand-link" to="/app/sessions">
+        <Link className="brand brand-link" to="/">
           <div className="brand-mark" aria-hidden="true">
             <Settings size={20} />
           </div>
@@ -764,8 +1001,8 @@ function NotFoundPage() {
         <h2>Page not found</h2>
         <p>The page you were looking for is not available.</p>
         <div className="not-found-actions">
-          <Link className="primary-button" to="/app/sessions">
-            Back to My Setup Log
+          <Link className="primary-button" to="/">
+            Back to home
           </Link>
         </div>
       </article>
