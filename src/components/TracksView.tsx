@@ -3,6 +3,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { MapPin, Pencil, Plus, Save, Trash2, X } from "lucide-react";
 import { fetchSessions, type SetupSession } from "../data/sessions";
 import {
+  ACCOUNT_FEATURES,
+  fetchAccountLimits,
+  hasAccountFeature,
+  type AccountLimits,
+} from "../data/subscriptions";
+import {
   createPrivateTrack,
   deletePrivateTrack,
   fetchTracks,
@@ -53,6 +59,7 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
   const [notesForm, setNotesForm] = useState(emptyNotesForm);
   const [trackSearch, setTrackSearch] = useState("");
   const [trackFilter, setTrackFilter] = useState<TrackFilter>("all");
+  const [accountLimits, setAccountLimits] = useState<AccountLimits | null>(null);
   const [status, setStatus] = useState<"loading" | "ready" | "saving">("loading");
   const [message, setMessage] = useState("");
 
@@ -100,16 +107,26 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
     });
   }, [trackFilter, trackSearch, tracks]);
 
+  const canCreateCustomTracks = hasAccountFeature(
+    accountLimits,
+    ACCOUNT_FEATURES.customTracks,
+  );
+
   useEffect(() => {
     let isCurrent = true;
     setStatus("loading");
     setMessage("");
 
-    Promise.all([fetchTracks(supabase, userId), fetchSessions(supabase)])
-      .then(([nextTracks, nextSessions]) => {
+    Promise.all([
+      fetchTracks(supabase, userId),
+      fetchSessions(supabase),
+      fetchAccountLimits(supabase),
+    ])
+      .then(([nextTracks, nextSessions, nextLimits]) => {
         if (!isCurrent) return;
         setTracks(nextTracks);
         setSessions(nextSessions);
+        setAccountLimits(nextLimits);
         setStatus("ready");
       })
       .catch((error: Error) => {
@@ -124,6 +141,11 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
   }, [supabase, userId]);
 
   function startTrackAdd() {
+    if (!canCreateCustomTracks) {
+      setMessage(featureMessage("custom tracks", accountLimits));
+      return;
+    }
+
     setEditingTrackId("");
     setTrackForm(emptyTrackForm);
     setNotesTrackId("");
@@ -268,7 +290,7 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
             <button
               aria-label="Add track"
               className="icon-button"
-              disabled={status === "saving"}
+              disabled={status === "saving" || !canCreateCustomTracks}
               type="button"
               onClick={startTrackAdd}
             >
@@ -276,6 +298,12 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
             </button>
           </div>
         </div>
+
+        {accountLimits && !canCreateCustomTracks ? (
+          <div className="limit-notice">
+            {featureMessage("custom tracks", accountLimits)}
+          </div>
+        ) : null}
 
         <div className="track-list-controls">
           <input
@@ -614,9 +642,9 @@ function TrackCard({
           <h3>{track.name}</h3>
           <p>{trackSummary(track)}</p>
         </div>
-        <span className="garage-kind">
-          {track.is_system ? "System Track" : "Your Track"}
-        </span>
+        {!track.is_system ? (
+            <span className="garage-kind">Your Track</span>
+          ) : null}
       </div>
 
       <div className="garage-stat-grid track-stat-grid">
@@ -773,6 +801,10 @@ function formatShortDate(session: SetupSession) {
   });
   const time = session.session_time ? session.session_time.slice(0, 5) : "";
   return [shortDate, time].filter(Boolean).join(" ");
+}
+
+function featureMessage(_feature: string, _limits: AccountLimits | null) {
+  return "Want to add a custom track? Upgrade to Premium to add new tracks!";
 }
 
 function searchableTrackText(track: TrackWithNotes) {

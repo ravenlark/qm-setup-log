@@ -1,5 +1,16 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+export const ACCOUNT_FEATURES = {
+  customTracks: "custom_tracks",
+  engineMaintenance: "engine_maintenance",
+} as const;
+
+export type AccountFeatureKey =
+  (typeof ACCOUNT_FEATURES)[keyof typeof ACCOUNT_FEATURES];
+
+export type AccountFeatures = Record<AccountFeatureKey, boolean> &
+  Record<string, boolean>;
+
 export type AccountLimits = {
   planName: string;
   planDisplayName: string;
@@ -15,6 +26,7 @@ export type AccountLimits = {
   engineCount: number;
   canCreateCar: boolean;
   canCreateEngine: boolean;
+  features: AccountFeatures;
 };
 
 type AccountLimitsRow = {
@@ -32,6 +44,9 @@ type AccountLimitsRow = {
   engine_count: number;
   can_create_car: boolean;
   can_create_engine: boolean;
+  features?: Record<string, boolean> | null;
+  can_create_custom_tracks?: boolean | null;
+  can_create_engine_maintenance?: boolean | null;
 };
 
 export async function fetchAccountLimits(
@@ -46,6 +61,15 @@ export async function fetchAccountLimits(
 
   const limits = row as AccountLimitsRow;
   const billingSummary = await fetchBillingSummary(supabase);
+  const features = {
+    ...(limits.features ?? {}),
+    [ACCOUNT_FEATURES.customTracks]:
+      limits.features?.[ACCOUNT_FEATURES.customTracks] ??
+      Boolean(limits.can_create_custom_tracks),
+    [ACCOUNT_FEATURES.engineMaintenance]:
+      limits.features?.[ACCOUNT_FEATURES.engineMaintenance] ??
+      Boolean(limits.can_create_engine_maintenance),
+  };
 
   return {
     canCreateCar: limits.can_create_car,
@@ -65,7 +89,15 @@ export async function fetchAccountLimits(
     priceCurrency:
       billingSummary?.priceCurrency ?? limits.price_currency ?? null,
     status: limits.status,
+    features,
   };
+}
+
+export function hasAccountFeature(
+  limits: AccountLimits | null,
+  featureKey: AccountFeatureKey,
+) {
+  return Boolean(limits?.features[featureKey]);
 }
 
 type BillingSummary = {

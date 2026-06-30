@@ -33,8 +33,10 @@ import {
 } from "../data/engines";
 import { fetchSessions, type SetupSession } from "../data/sessions";
 import {
+  ACCOUNT_FEATURES,
   fetchAccountLimits,
   formatLimitUsage,
+  hasAccountFeature,
   type AccountLimits,
 } from "../data/subscriptions";
 
@@ -153,10 +155,19 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
     return stats;
   }, [engines, maintenanceByEngineId, sessions]);
 
-  const canCreateCar =
-    accountLimits?.maxCars == null || cars.length < accountLimits.maxCars;
-  const canCreateEngine =
-    accountLimits?.maxEngines == null || engines.length < accountLimits.maxEngines;
+  const canCreateCar = Boolean(
+    accountLimits &&
+      (accountLimits.maxCars == null || cars.length < accountLimits.maxCars),
+  );
+  const canCreateEngine = Boolean(
+    accountLimits &&
+      (accountLimits.maxEngines == null ||
+        engines.length < accountLimits.maxEngines),
+  );
+  const canCreateEngineMaintenance = hasAccountFeature(
+    accountLimits,
+    ACCOUNT_FEATURES.engineMaintenance,
+  );
 
   useEffect(() => {
     let isCurrent = true;
@@ -287,6 +298,10 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
   }
 
   function startMaintenanceAdd(engine: EngineWithType) {
+    if (!canCreateEngineMaintenance) {
+      return;
+    }
+
     setEditingMaintenanceId("");
     setMaintenanceEngineId(engine.id);
     setMaintenanceForm({
@@ -299,6 +314,10 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
   }
 
   function startMaintenanceEdit(entry: EngineMaintenanceWithType) {
+    if (!canCreateEngineMaintenance) {
+      return;
+    }
+
     setEditingMaintenanceId(entry.id);
     setMaintenanceEngineId(entry.engine_id);
     setMaintenanceForm({
@@ -564,13 +583,13 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
             {limitMessage("engine", accountLimits)}
           </div>
         ) : null}
-
         {status === "loading" ? (
           <div className="empty-state">Loading engines...</div>
         ) : engines.length ? (
           <div className="garage-card-list">
             {engines.map((engine) => (
               <EngineCard
+                canManageMaintenance={canCreateEngineMaintenance}
                 carName={carNameForEngine(engine.id, engineAssignments, carById)}
                 engine={engine}
                 key={engine.id}
@@ -935,7 +954,7 @@ function CarCard({
           <p>{carSummary(car, engineName, sessionCount)}</p>
           {car.notes ? <p>{car.notes}</p> : null}
         </div>
-        <span className="garage-kind">Car</span>
+        {/*<span className="garage-kind">Car</span>*/}
       </div>
       <div className="garage-card-actions">
         <button
@@ -962,6 +981,7 @@ function CarCard({
 }
 
 function EngineCard({
+  canManageMaintenance,
   carName,
   engine,
   maintenanceEntries,
@@ -973,6 +993,7 @@ function EngineCard({
   stats,
   status,
 }: {
+  canManageMaintenance: boolean;
   carName: string;
   engine: EngineWithType;
   maintenanceEntries: EngineMaintenanceWithType[];
@@ -991,7 +1012,7 @@ function EngineCard({
           <h3>{engine.name}</h3>
           <p>{engineSummary(engine, carName, stats?.totalLaps ?? 0)}</p>
         </div>
-        <span className="garage-kind">Engine</span>
+        {/*<span className="garage-kind">Engine</span>*/}
       </div>
 
       <div className="garage-stat-grid">
@@ -1009,57 +1030,61 @@ function EngineCard({
 
       {engine.notes ? <p className="garage-notes">{engine.notes}</p> : null}
 
-      <details className="garage-maintenance">
-        <summary>
-          <span>Maintenance ({maintenanceEntries.length})</span>
-          <ChevronDown size={17} />
-        </summary>
-        {maintenanceEntries.length ? (
-          <div className="maintenance-list">
-            {maintenanceEntries.map((entry) => (
-              <div className="maintenance-row compact" key={entry.id}>
-                <div>
-                  <strong>{entry.maintenanceType?.name ?? "Maintenance"}</strong>
-                  <small>{maintenanceMeta(entry)}</small>
-                  {entry.notes ? <p>{entry.notes}</p> : null}
+      {canManageMaintenance ? (
+        <details className="garage-maintenance">
+          <summary>
+            <span>Maintenance ({maintenanceEntries.length})</span>
+            <ChevronDown size={17} />
+          </summary>
+          {maintenanceEntries.length ? (
+            <div className="maintenance-list">
+              {maintenanceEntries.map((entry) => (
+                <div className="maintenance-row compact" key={entry.id}>
+                  <div>
+                    <strong>{entry.maintenanceType?.name ?? "Maintenance"}</strong>
+                    <small>{maintenanceMeta(entry)}</small>
+                    {entry.notes ? <p>{entry.notes}</p> : null}
+                  </div>
+                  <div className="panel-actions">
+                    <button
+                      aria-label="Edit maintenance"
+                      className="icon-button"
+                      disabled={status === "saving"}
+                      type="button"
+                      onClick={() => onEditMaintenance(entry)}
+                    >
+                      <Pencil size={18} />
+                    </button>
+                    <button
+                      aria-label="Remove maintenance"
+                      className="danger-icon-button"
+                      disabled={status === "saving"}
+                      type="button"
+                      onClick={() => onDeleteMaintenance(entry)}
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
                 </div>
-                <div className="panel-actions">
-                  <button
-                    aria-label="Edit maintenance"
-                    className="icon-button"
-                    disabled={status === "saving"}
-                    type="button"
-                    onClick={() => onEditMaintenance(entry)}
-                  >
-                    <Pencil size={18} />
-                  </button>
-                  <button
-                    aria-label="Remove maintenance"
-                    className="danger-icon-button"
-                    disabled={status === "saving"}
-                    type="button"
-                    onClick={() => onDeleteMaintenance(entry)}
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="empty-state">No maintenance logged.</div>
-        )}
-      </details>
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state">No maintenance logged.</div>
+          )}
+        </details>
+      ) : null}
 
       <div className="garage-card-actions">
-        <button
-          className="secondary-button"
-          disabled={status === "saving"}
-          type="button"
-          onClick={() => onAddMaintenance(engine)}
-        >
-          Add Maintenance
-        </button>
+        {canManageMaintenance ? (
+          <button
+            className="secondary-button"
+            disabled={status === "saving"}
+            type="button"
+            onClick={() => onAddMaintenance(engine)}
+          >
+            Add Maintenance
+          </button>
+        ) : null}
         <button
           aria-label={`Edit ${engine.name}`}
           className="icon-button"
