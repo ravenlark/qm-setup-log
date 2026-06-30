@@ -276,7 +276,7 @@ export function App() {
             )}
           </div>
           <div>
-            <h1>Setup Log</h1>
+            <h1>My Setup Log</h1>
             <p>Quarter midget race notes</p>
           </div>
         </div>
