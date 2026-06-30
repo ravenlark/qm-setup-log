@@ -416,14 +416,17 @@ summary:focus-visible {
 
 .site-footer {
   display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
   justify-content: center;
   padding: 24px 0 0;
+  color: var(--color-muted);
+  font-size: 0.9rem;
+  font-weight: var(--weight-bold);
 }
 
 .site-footer a {
   color: var(--color-primary-hover);
-  font-size: 0.9rem;
-  font-weight: var(--weight-bold);
   text-decoration: none;
 }
 

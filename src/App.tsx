@@ -6,10 +6,8 @@ import {
   ChevronDown,
   ClipboardList,
   Flag,
-  LogIn,
   LogOut,
   Menu,
-  Settings,
   User,
   X,
 } from "lucide-react";
@@ -23,9 +21,12 @@ import {
   useParams,
 } from "react-router-dom";
 import { GarageView } from "./components/GarageView";
+import { GoogleSignInButton } from "./components/GoogleSignInButton";
 import { ProfileView } from "./components/ProfileView";
 import { ReportsView } from "./components/ReportsView";
 import { SessionsView } from "./components/SessionsView";
+import { SiteFooter } from "./components/SiteFooter";
+import { SiteHeader } from "./components/SiteHeader";
 import { TracksView } from "./components/TracksView";
 import { ensureAccountSetup, type UserProfile } from "./lib/account";
 import { supabase, supabaseConfig } from "./lib/supabase";
@@ -90,6 +91,303 @@ async function signInWithGoogleRedirect(redirectPath: string) {
   if (error) throw error;
 }
 
+function useGoogleSignIn(defaultRedirectPath = "/app/sessions") {
+  const [authError, setAuthError] = useState("");
+  const isSupabaseConfigured = Boolean(
+    supabaseConfig.url && supabaseConfig.publishableKey,
+  );
+
+  async function signIn(redirectPath = defaultRedirectPath) {
+    setAuthError("");
+    try {
+      await signInWithGoogleRedirect(redirectPath);
+    } catch (error) {
+      setAuthError((error as Error).message);
+    }
+  }
+
+  return { authError, isSupabaseConfigured, signIn };
+}
+
+function useAccountHeaderState({
+  redirectOnSignOut = false,
+}: { redirectOnSignOut?: boolean } = {}) {
+  const navigate = useNavigate();
+  const [session, setSession] = useState<Session | null>(null);
+  const [authStatus, setAuthStatus] = useState<"loading" | "ready">(
+    supabase ? "loading" : "ready",
+  );
+  const [accountStatus, setAccountStatus] = useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [teamLogoUrl, setTeamLogoUrl] = useState("");
+  const [authError, setAuthError] = useState("");
+  const authUserIdRef = useRef<string | null>(null);
+  const userId = session?.user.id ?? null;
+  const userLabel = useMemo(() => {
+    const user = session?.user;
+    return (
+      user?.user_metadata?.full_name ||
+      user?.user_metadata?.name ||
+      user?.email ||
+      "Signed in"
+    );
+  }, [session]);
+  const teamLabel = profile
+    ? profile.team_name.trim() || "Team name not set"
+    : "Loading team...";
+
+  useEffect(() => {
+    if (!supabase) {
+      setAuthStatus("ready");
+      return;
+    }
+
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (error) setAuthError(error.message);
+      authUserIdRef.current = data.session?.user.id ?? null;
+      setSession(data.session);
+      setAuthStatus("ready");
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      const nextUserId = nextSession?.user.id ?? null;
+      const userChanged = authUserIdRef.current !== nextUserId;
+
+      authUserIdRef.current = nextUserId;
+      setSession(nextSession);
+      if (userChanged) setProfile(null);
+      setAuthError("");
+      setAuthStatus("ready");
+      if (!nextSession && redirectOnSignOut) navigate("/", { replace: true });
+    });
+
+    return () => subscription.unsubscribe();
+  }, [navigate, redirectOnSignOut]);
+
+  useEffect(() => {
+    if (!supabase || !session?.user) {
+      setAccountStatus("idle");
+      setProfile(null);
+      return;
+    }
+
+    let isCurrent = true;
+    setAccountStatus("loading");
+
+    ensureAccountSetup(supabase, session.user)
+      .then((nextProfile) => {
+        if (!isCurrent) return;
+        setProfile(nextProfile);
+        setAccountStatus("ready");
+        setAuthError("");
+      })
+      .catch((error: Error) => {
+        if (!isCurrent) return;
+        setAccountStatus("error");
+        setAuthError(error.message);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [userId]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    if (!supabase || !profile?.logo_path) {
+      setTeamLogoUrl("");
+      return;
+    }
+
+    supabase.storage
+      .from("team-logos")
+      .createSignedUrl(profile.logo_path, 60 * 60)
+      .then(({ data, error }) => {
+        if (!isCurrent) return;
+        setTeamLogoUrl(error ? "" : data.signedUrl);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [profile?.logo_path]);
+
+  async function signOut() {
+    if (!supabase) return;
+    setAuthError("");
+    const { error } = await supabase.auth.signOut();
+    if (error) setAuthError(error.message);
+    else navigate("/");
+  }
+
+  return {
+    accountStatus,
+    authError,
+    authStatus,
+    profile,
+    session,
+    setAuthError,
+    setProfile,
+    signOut,
+    teamLabel,
+    teamLogoUrl,
+    userLabel,
+  };
+}
+
+function AuthHeaderActions({
+  authStatus,
+  isSupabaseConfigured,
+  onProfile,
+  onSignIn,
+  onSignOut,
+  session,
+  teamLabel,
+  userLabel,
+}: {
+  authStatus: "loading" | "ready";
+  isSupabaseConfigured: boolean;
+  onProfile: () => void;
+  onSignIn: () => void;
+  onSignOut: () => void;
+  session: Session | null;
+  teamLabel: string;
+  userLabel: string;
+}) {
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const userId = session?.user.id ?? null;
+
+  useEffect(() => {
+    setAccountMenuOpen(false);
+    setMobileMenuOpen(false);
+  }, [userId]);
+
+  function openProfile() {
+    setAccountMenuOpen(false);
+    setMobileMenuOpen(false);
+    onProfile();
+  }
+
+  function signOut() {
+    setAccountMenuOpen(false);
+    setMobileMenuOpen(false);
+    onSignOut();
+  }
+
+  if (!session) {
+    return (
+      <div className="auth-cluster">
+        <GoogleSignInButton
+          disabled={!isSupabaseConfigured || authStatus === "loading"}
+          label={authStatus === "loading" ? "Checking session" : undefined}
+          onClick={onSignIn}
+        />
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="auth-cluster">
+        <div className="desktop-account-menu">
+          <button
+            aria-expanded={accountMenuOpen}
+            className="account-menu-button"
+            type="button"
+            onClick={() => {
+              setMobileMenuOpen(false);
+              setAccountMenuOpen((open) => !open);
+            }}
+          >
+            <span>
+              <strong>{userLabel}</strong>
+              <small>{teamLabel}</small>
+            </span>
+            <ChevronDown size={18} />
+          </button>
+          {accountMenuOpen ? (
+            <AccountMenuContent
+              teamLabel={teamLabel}
+              userLabel={userLabel}
+              onProfile={openProfile}
+              onSignOut={signOut}
+            />
+          ) : null}
+        </div>
+        <button
+          aria-expanded={mobileMenuOpen}
+          aria-label="Open menu"
+          className="mobile-menu-button"
+          type="button"
+          onClick={() => {
+            setAccountMenuOpen(false);
+            setMobileMenuOpen((open) => !open);
+          }}
+        >
+          {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+        </button>
+      </div>
+      {mobileMenuOpen ? (
+        <div className="mobile-account-menu">
+          <AccountMenuContent
+            teamLabel={teamLabel}
+            userLabel={userLabel}
+            onProfile={openProfile}
+            onSignOut={signOut}
+          />
+        </div>
+      ) : null}
+    </>
+  );
+}
+
+function PageHeader({
+  accountHeader,
+  brandHref,
+  home = false,
+  isSupabaseConfigured,
+  onSignIn,
+  showUnauthenticatedSignIn = true,
+}: {
+  accountHeader: ReturnType<typeof useAccountHeaderState>;
+  brandHref?: string;
+  home?: boolean;
+  isSupabaseConfigured: boolean;
+  onSignIn: () => void;
+  showUnauthenticatedSignIn?: boolean;
+}) {
+  const navigate = useNavigate();
+  const showActions = Boolean(
+    accountHeader.session || showUnauthenticatedSignIn,
+  );
+
+  return (
+    <SiteHeader
+      brandHref={brandHref}
+      home={home}
+      teamLogoUrl={accountHeader.teamLogoUrl}
+      actions={showActions ? (
+        <AuthHeaderActions
+          authStatus={accountHeader.authStatus}
+          isSupabaseConfigured={isSupabaseConfigured}
+          onProfile={() => navigate("/app/profile")}
+          onSignIn={onSignIn}
+          onSignOut={accountHeader.signOut}
+          session={accountHeader.session}
+          teamLabel={accountHeader.teamLabel}
+          userLabel={accountHeader.userLabel}
+        />
+      ) : null}
+    />
+  );
+}
+
 export function App() {
   return (
     <Routes>
@@ -108,10 +406,11 @@ function HomePage() {
   const [homeAuthStatus, setHomeAuthStatus] = useState<"loading" | "public">(
     supabase ? "loading" : "public",
   );
-  const [homeAuthError, setHomeAuthError] = useState("");
-  const isSupabaseConfigured = Boolean(
-    supabaseConfig.url && supabaseConfig.publishableKey,
-  );
+  const {
+    authError: homeAuthError,
+    isSupabaseConfigured,
+    signIn,
+  } = useGoogleSignIn();
 
   useEffect(() => {
     if (!supabase) return;
@@ -132,15 +431,6 @@ function HomePage() {
     };
   }, [navigate]);
 
-  async function signInWithGoogle() {
-    setHomeAuthError("");
-    try {
-      await signInWithGoogleRedirect("/app/sessions");
-    } catch (error) {
-      setHomeAuthError((error as Error).message);
-    }
-  }
-
   if (homeAuthStatus === "loading") {
     return (
       <main className="app-shell home-shell">
@@ -151,26 +441,16 @@ function HomePage() {
 
   return (
     <main className="app-shell home-shell">
-      <header className="topbar home-topbar">
-        <Link className="brand brand-link" to="/">
-          <div className="brand-mark" aria-hidden="true">
-            <Settings size={20} />
-          </div>
-          <div>
-            <h1>My Setup Log</h1>
-            <p>Quarter midget race notes</p>
-          </div>
-        </Link>
-        <button
-          className="primary-button"
-          disabled={!isSupabaseConfigured}
-          type="button"
-          onClick={signInWithGoogle}
-        >
-          <LogIn size={18} />
-          Sign in with Google
-        </button>
-      </header>
+      <SiteHeader
+        brandHref="/"
+        home
+        actions={
+          <GoogleSignInButton
+            disabled={!isSupabaseConfigured}
+            onClick={() => signIn()}
+          />
+        }
+      />
 
       {homeAuthError ? <p className="auth-error">{homeAuthError}</p> : null}
 
@@ -184,15 +464,11 @@ function HomePage() {
             details do not disappear after race day.
           </p>
           <div className="home-actions">
-            <button
-              className="primary-button"
+            <GoogleSignInButton
               disabled={!isSupabaseConfigured}
-              type="button"
-              onClick={signInWithGoogle}
-            >
-              <LogIn size={18} />
-              Get started
-            </button>
+              label="Get started"
+              onClick={() => signIn()}
+            />
             <Link className="secondary-button" to="/pricing">
               Pricing
             </Link>
@@ -246,43 +522,31 @@ function HomePage() {
         </div>
       </section>
 
-      <footer className="site-footer">
-        <Link to="/privacy-policy">Privacy Policy</Link>
-      </footer>
+      <SiteFooter />
     </main>
   );
 }
 
 function PricingPage() {
-  const [pricingAuthError, setPricingAuthError] = useState("");
-
-  async function startPlan(redirectPath: string) {
-    setPricingAuthError("");
-    try {
-      await signInWithGoogleRedirect(redirectPath);
-    } catch (error) {
-      setPricingAuthError((error as Error).message);
-    }
-  }
+  const accountHeader = useAccountHeaderState();
+  const {
+    authError: pricingAuthError,
+    isSupabaseConfigured,
+    signIn,
+  } = useGoogleSignIn();
+  const authError = pricingAuthError || accountHeader.authError;
 
   return (
     <main className="app-shell pricing-shell">
-      <header className="topbar home-topbar">
-        <Link className="brand brand-link" to="/">
-          <div className="brand-mark" aria-hidden="true">
-            <Settings size={20} />
-          </div>
-          <div>
-            <h1>My Setup Log</h1>
-            <p>Quarter midget race notes</p>
-          </div>
-        </Link>
-        <Link className="primary-button" to="/app/sessions">
-          Open app
-        </Link>
-      </header>
+      <PageHeader
+        accountHeader={accountHeader}
+        brandHref="/"
+        home
+        isSupabaseConfigured={isSupabaseConfigured}
+        onSignIn={() => signIn()}
+      />
 
-      {pricingAuthError ? <p className="auth-error">{pricingAuthError}</p> : null}
+      {authError ? <p className="auth-error">{authError}</p> : null}
 
       <section className="pricing-header">
         <span className="eyebrow">Pricing</span>
@@ -311,7 +575,7 @@ function PricingPage() {
           <button
             className="secondary-button"
             type="button"
-            onClick={() => startPlan("/app/garage")}
+            onClick={() => signIn("/app/garage")}
           >
             Start Free
           </button>
@@ -333,16 +597,14 @@ function PricingPage() {
           <button
             className="primary-button"
             type="button"
-            onClick={() => startPlan("/app/profile")}
+            onClick={() => signIn("/app/profile")}
           >
             Choose Senior
           </button>
         </article>
       </section>
 
-      <footer className="site-footer">
-        <Link to="/privacy-policy">Privacy Policy</Link>
-      </footer>
+      <SiteFooter />
     </main>
   );
 }
@@ -353,114 +615,23 @@ function WorkspaceApp() {
   const activeView = appViews.has(workspaceView as AppView)
     ? (workspaceView as AppView)
     : null;
-  const [session, setSession] = useState<Session | null>(null);
-  const [authStatus, setAuthStatus] = useState<"loading" | "ready">("loading");
-  const [accountStatus, setAccountStatus] = useState<
-    "idle" | "loading" | "ready" | "error"
-  >("idle");
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
-  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [teamLogoUrl, setTeamLogoUrl] = useState("");
-  const [authError, setAuthError] = useState("");
-  const authUserIdRef = useRef<string | null>(null);
+  const accountHeader = useAccountHeaderState({ redirectOnSignOut: true });
+  const {
+    accountStatus,
+    authError,
+    authStatus,
+    profile,
+    session,
+    setAuthError,
+    setProfile,
+    signOut,
+    teamLabel,
+    teamLogoUrl,
+    userLabel,
+  } = accountHeader;
   const isSupabaseConfigured = Boolean(
     supabaseConfig.url && supabaseConfig.publishableKey,
   );
-  const userId = session?.user.id ?? null;
-  const userLabel = useMemo(() => {
-    const user = session?.user;
-    return (
-      user?.user_metadata?.full_name ||
-      user?.user_metadata?.name ||
-      user?.email ||
-      "Signed in"
-    );
-  }, [session]);
-  const teamLabel = profile
-    ? profile.team_name.trim() || "Team name not set"
-    : "Loading team...";
-
-  useEffect(() => {
-    if (!supabase) {
-      setAuthStatus("ready");
-      return;
-    }
-
-    supabase.auth.getSession().then(({ data, error }) => {
-      if (error) setAuthError(error.message);
-      authUserIdRef.current = data.session?.user.id ?? null;
-      setSession(data.session);
-      setAuthStatus("ready");
-    });
-
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      const nextUserId = nextSession?.user.id ?? null;
-      const userChanged = authUserIdRef.current !== nextUserId;
-
-      authUserIdRef.current = nextUserId;
-      setSession(nextSession);
-      if (userChanged) setProfile(null);
-      setAccountMenuOpen(false);
-      setMobileMenuOpen(false);
-      setAuthError("");
-      setAuthStatus("ready");
-      if (!nextSession) navigate("/", { replace: true });
-    });
-
-    return () => subscription.unsubscribe();
-  }, [navigate]);
-
-  useEffect(() => {
-    if (!supabase || !session?.user) {
-      setAccountStatus("idle");
-      setProfile(null);
-      return;
-    }
-
-    let isCurrent = true;
-    setAccountStatus("loading");
-
-    ensureAccountSetup(supabase, session.user)
-      .then((nextProfile) => {
-        if (!isCurrent) return;
-        setProfile(nextProfile);
-        setAccountStatus("ready");
-        setAuthError("");
-      })
-      .catch((error: Error) => {
-        if (!isCurrent) return;
-        setAccountStatus("error");
-        setAuthError(error.message);
-      });
-
-    return () => {
-      isCurrent = false;
-    };
-  }, [userId]);
-
-  useEffect(() => {
-    let isCurrent = true;
-
-    if (!supabase || !profile?.logo_path) {
-      setTeamLogoUrl("");
-      return;
-    }
-
-    supabase.storage
-      .from("team-logos")
-      .createSignedUrl(profile.logo_path, 60 * 60)
-      .then(({ data, error }) => {
-        if (!isCurrent) return;
-        setTeamLogoUrl(error ? "" : data.signedUrl);
-      });
-
-    return () => {
-      isCurrent = false;
-    };
-  }, [profile?.logo_path]);
 
   async function signInWithGoogle() {
     setAuthError("");
@@ -474,25 +645,13 @@ function WorkspaceApp() {
     }
   }
 
-  async function signOut() {
-    if (!supabase) return;
-    setAuthError("");
-    setAccountMenuOpen(false);
-    setMobileMenuOpen(false);
-    const { error } = await supabase.auth.signOut();
-    if (error) setAuthError(error.message);
-    else navigate("/");
-  }
-
-  function openProfilePlaceholder() {
-    setAccountMenuOpen(false);
-    setMobileMenuOpen(false);
+  function openProfile() {
     navigate("/app/profile");
   }
 
   function renderWorkspaceContent() {
     if (!activeView) {
-      return <NotFoundPage />;
+      return <NotFoundPage showSignIn={false} />;
     }
 
     if (authStatus === "loading") {
@@ -546,92 +705,26 @@ function WorkspaceApp() {
   }
 
   if (!activeView) {
-    return <NotFoundPage />;
+    return <NotFoundPage showSignIn={false} />;
   }
 
   return (
     <main className="app-shell">
-      <header className="topbar">
-        <div className="brand">
-          <div
-            className={teamLogoUrl ? "brand-mark brand-mark-logo" : "brand-mark"}
-            aria-hidden="true"
-          >
-            {teamLogoUrl ? (
-              <img alt="" src={teamLogoUrl} />
-            ) : (
-              <Settings size={20} />
-            )}
-          </div>
-          <div>
-            <h1>My Setup Log</h1>
-            <p>Quarter midget race notes</p>
-          </div>
-        </div>
-        <div className="auth-cluster">
-          {session ? (
-            <>
-              <div className="desktop-account-menu">
-                <button
-                  aria-expanded={accountMenuOpen}
-                  className="account-menu-button"
-                  type="button"
-                  onClick={() => {
-                    setMobileMenuOpen(false);
-                    setAccountMenuOpen((open) => !open);
-                  }}
-                >
-                  <span>
-                    <strong>{userLabel}</strong>
-                    <small>{teamLabel}</small>
-                  </span>
-                  <ChevronDown size={18} />
-                </button>
-                {accountMenuOpen ? (
-                  <AccountMenuContent
-                    teamLabel={teamLabel}
-                    userLabel={userLabel}
-                    onProfile={openProfilePlaceholder}
-                    onSignOut={signOut}
-                  />
-                ) : null}
-              </div>
-              <button
-                aria-expanded={mobileMenuOpen}
-                aria-label="Open menu"
-                className="mobile-menu-button"
-                type="button"
-                onClick={() => {
-                  setAccountMenuOpen(false);
-                  setMobileMenuOpen((open) => !open);
-                }}
-              >
-                {mobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
-              </button>
-            </>
-          ) : (
-            <button
-              className="auth-button"
-              disabled={!isSupabaseConfigured || authStatus === "loading"}
-              type="button"
-              onClick={signInWithGoogle}
-            >
-              <LogIn size={18} />
-              {authStatus === "loading" ? "Checking session" : "Sign in with Google"}
-            </button>
-          )}
-        </div>
-        {session && mobileMenuOpen ? (
-          <div className="mobile-account-menu">
-            <AccountMenuContent
-              teamLabel={teamLabel}
-              userLabel={userLabel}
-              onProfile={openProfilePlaceholder}
-              onSignOut={signOut}
-            />
-          </div>
-        ) : null}
-      </header>
+      <SiteHeader
+        teamLogoUrl={teamLogoUrl}
+        actions={
+          <AuthHeaderActions
+            authStatus={authStatus}
+            isSupabaseConfigured={isSupabaseConfigured}
+            onProfile={openProfile}
+            onSignIn={signInWithGoogle}
+            onSignOut={signOut}
+            session={session}
+            teamLabel={teamLabel}
+            userLabel={userLabel}
+          />
+        }
+      />
 
       {session ? (
         <nav className="tabs" aria-label="Main views">
@@ -652,27 +745,30 @@ function WorkspaceApp() {
         {authError ? <p className="auth-error">{authError}</p> : null}
         {renderWorkspaceContent()}
       </section>
-      <footer className="site-footer">
-        <Link to="/privacy-policy">Privacy Policy</Link>
-      </footer>
+      <SiteFooter />
     </main>
   );
 }
 
 function PrivacyPolicyPage() {
+  const accountHeader = useAccountHeaderState();
+  const {
+    authError: signInAuthError,
+    isSupabaseConfigured,
+    signIn,
+  } = useGoogleSignIn();
+  const authError = signInAuthError || accountHeader.authError;
+
   return (
     <main className="app-shell privacy-shell">
-      <header className="topbar">
-        <Link className="brand brand-link" to="/">
-          <div className="brand-mark" aria-hidden="true">
-            <Settings size={20} />
-          </div>
-          <div>
-            <h1>My Setup Log</h1>
-            <p>Quarter midget race notes</p>
-          </div>
-        </Link>
-      </header>
+      <PageHeader
+        accountHeader={accountHeader}
+        brandHref="/"
+        isSupabaseConfigured={isSupabaseConfigured}
+        onSignIn={() => signIn()}
+      />
+
+      {authError ? <p className="auth-error">{authError}</p> : null}
 
       <article className="panel privacy-panel">
         <p className="eyebrow"></p>
@@ -977,24 +1073,33 @@ function PrivacyPolicyPage() {
           </p>
         </section>
       </article>
+      <SiteFooter />
     </main>
   );
 }
 
-function NotFoundPage() {
+function NotFoundPage({ showSignIn = true }: { showSignIn?: boolean }) {
+  const accountHeader = useAccountHeaderState();
+  const {
+    authError: signInAuthError,
+    isSupabaseConfigured,
+    signIn,
+  } = useGoogleSignIn();
+  const authError = signInAuthError || accountHeader.authError;
+
   return (
     <main className="app-shell privacy-shell">
-      <header className="topbar">
-        <Link className="brand brand-link" to="/">
-          <div className="brand-mark" aria-hidden="true">
-            <Settings size={20} />
-          </div>
-          <div>
-            <h1>My Setup Log</h1>
-            <p>Quarter midget race notes</p>
-          </div>
-        </Link>
-      </header>
+      <PageHeader
+        accountHeader={accountHeader}
+        brandHref="/"
+        isSupabaseConfigured={isSupabaseConfigured}
+        onSignIn={() => signIn()}
+        showUnauthenticatedSignIn={showSignIn}
+      />
+
+      {(showSignIn || accountHeader.session) && authError ? (
+        <p className="auth-error">{authError}</p>
+      ) : null}
 
       <article className="panel privacy-panel">
         <p className="eyebrow">Not Found</p>
@@ -1006,6 +1111,7 @@ function NotFoundPage() {
           </Link>
         </div>
       </article>
+      <SiteFooter />
     </main>
   );
 }
