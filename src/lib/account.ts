@@ -44,3 +44,21 @@ export async function fetchUserProfile(
   if (error) throw setupError("Profile lookup", error.message);
   return data as UserProfile;
 }
+
+export async function updateUserProfile(
+  supabase: SupabaseClient,
+  profile: UserProfile,
+): Promise<UserProfile> {
+  const { data, error } = await supabase
+    .from("profiles")
+    .update({
+      team_name: profile.team_name,
+      logo_path: profile.logo_path,
+    })
+    .eq("id", profile.id)
+    .select("id, team_name, logo_path")
+    .single();
+
+  if (error) throw setupError("Profile update", error.message);
+  return data as UserProfile;
+}

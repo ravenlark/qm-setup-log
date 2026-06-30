@@ -37,6 +37,11 @@ type TracksViewProps = {
 
 type TrackModal = "track" | "notes" | null;
 type TrackFilter = "all" | "private" | "system";
+type TrackStats = {
+  lastSession: SetupSession | null;
+  totalLaps: number;
+  totalSessions: number;
+};
 
 export function TracksView({ supabase, userId }: TracksViewProps) {
   const [tracks, setTracks] = useState<TrackWithNotes[]>([]);
@@ -56,12 +61,30 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
     [notesTrackId, tracks],
   );
 
-  const sessionCountByTrackId = useMemo(() => {
-    const counts = new Map<string, number>();
+  const trackStatsByTrackId = useMemo(() => {
+    const stats = new Map<string, TrackStats>();
+
     for (const session of sessions) {
-      counts.set(session.track_id, (counts.get(session.track_id) ?? 0) + 1);
+      const current = stats.get(session.track_id) ?? {
+        lastSession: null,
+        totalLaps: 0,
+        totalSessions: 0,
+      };
+
+      current.totalSessions += 1;
+      current.totalLaps += session.total_laps ?? 0;
+
+      if (
+        !current.lastSession ||
+        sessionTimestamp(session) > sessionTimestamp(current.lastSession)
+      ) {
+        current.lastSession = session;
+      }
+
+      stats.set(session.track_id, current);
     }
-    return counts;
+
+    return stats;
   }, [sessions]);
 
   const visibleTracks = useMemo(() => {
@@ -276,11 +299,11 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
         {status === "loading" ? (
           <div className="empty-state">Loading tracks...</div>
         ) : visibleTracks.length ? (
-          <div className="garage-card-list">
+          <div className="track-card-grid">
             {visibleTracks.map((track) => (
               <TrackCard
                 key={track.id}
-                sessionCount={sessionCountByTrackId.get(track.id) ?? 0}
+                stats={trackStatsByTrackId.get(track.id)}
                 status={status}
                 track={track}
                 onDelete={handleDeleteTrack}
@@ -559,14 +582,14 @@ function TrackCard({
   onDelete,
   onEdit,
   onNotes,
-  sessionCount,
+  stats,
   status,
   track,
 }: {
   onDelete: (track: TrackWithNotes) => void;
   onEdit: (track: TrackWithNotes) => void;
   onNotes: (track: TrackWithNotes) => void;
-  sessionCount: number;
+  stats: TrackStats | undefined;
   status: "loading" | "ready" | "saving";
   track: TrackWithNotes;
 }) {
@@ -581,15 +604,28 @@ function TrackCard({
   ].filter((note) => Boolean(note.value?.trim()));
 
   return (
-    <article className="garage-card track-card">
+    <article
+      className={`garage-card track-card ${
+        track.is_system ? "track-card-system" : "track-card-user"
+      }`}
+    >
       <div className="garage-card-heading">
         <div>
           <h3>{track.name}</h3>
-          <p>{trackSummary(track, sessionCount)}</p>
+          <p>{trackSummary(track)}</p>
         </div>
         <span className="garage-kind">
           {track.is_system ? "System Track" : "Your Track"}
         </span>
+      </div>
+
+      <div className="garage-stat-grid track-stat-grid">
+        <TrackStat label="Total Sessions" value={String(stats?.totalSessions ?? 0)} />
+        <TrackStat
+          label="Last Session"
+          value={stats?.lastSession ? formatShortDate(stats.lastSession) : "--"}
+        />
+        <TrackStat label="Total Laps" value={String(stats?.totalLaps ?? 0)} />
       </div>
 
       {noteLines.length ? (
@@ -634,6 +670,15 @@ function TrackCard({
         ) : null}
       </div>
     </article>
+  );
+}
+
+function TrackStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="garage-stat">
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
   );
 }
 
@@ -705,16 +750,29 @@ function notesInputFromTrack(track: TrackWithNotes): TrackNotesInput {
   };
 }
 
-function trackSummary(track: TrackWithNotes, sessionCount: number) {
+function trackSummary(track: TrackWithNotes) {
   return [
     track.location,
     track.surface,
     track.length,
     track.is_banked ? "Banked" : "Flat",
-    `${sessionCount} ${sessionCount === 1 ? "session" : "sessions"}`,
   ]
     .filter(Boolean)
     .join(" - ");
+}
+
+function sessionTimestamp(session: SetupSession) {
+  return `${session.session_date}T${session.session_time ?? "00:00"}`;
+}
+
+function formatShortDate(session: SetupSession) {
+  const date = new Date(`${session.session_date}T12:00:00`);
+  const shortDate = date.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+  });
+  const time = session.session_time ? session.session_time.slice(0, 5) : "";
+  return [shortDate, time].filter(Boolean).join(" ");
 }
 
 function searchableTrackText(track: TrackWithNotes) {

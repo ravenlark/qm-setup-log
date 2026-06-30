@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
   BarChart3,
@@ -14,6 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { GarageView } from "./components/GarageView";
+import { ProfileView } from "./components/ProfileView";
 import { ReportsView } from "./components/ReportsView";
 import { SessionsView } from "./components/SessionsView";
 import { TracksView } from "./components/TracksView";
@@ -21,6 +22,7 @@ import { ensureAccountSetup, type UserProfile } from "./lib/account";
 import { supabase, supabaseConfig } from "./lib/supabase";
 
 type AppTab = "sessions" | "garage" | "tracks" | "reports";
+type AppView = AppTab | "profile";
 
 const tabs = [
   { id: "sessions", label: "Sessions", icon: ClipboardList },
@@ -54,7 +56,7 @@ const comingSoon = {
 
 export function App() {
   const [session, setSession] = useState<Session | null>(null);
-  const [activeTab, setActiveTab] = useState<AppTab>("sessions");
+  const [activeView, setActiveView] = useState<AppView>("sessions");
   const [authStatus, setAuthStatus] = useState<"loading" | "ready">("loading");
   const [accountStatus, setAccountStatus] = useState<
     "idle" | "loading" | "ready" | "error"
@@ -62,7 +64,9 @@ export function App() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [teamLogoUrl, setTeamLogoUrl] = useState("");
   const [authError, setAuthError] = useState("");
+  const authUserIdRef = useRef<string | null>(null);
   const isSupabaseConfigured = Boolean(
     supabaseConfig.url && supabaseConfig.publishableKey,
   );
@@ -86,6 +90,7 @@ export function App() {
 
     supabase.auth.getSession().then(({ data, error }) => {
       if (error) setAuthError(error.message);
+      authUserIdRef.current = data.session?.user.id ?? null;
       setSession(data.session);
       setAuthStatus("ready");
     });
@@ -93,12 +98,17 @@ export function App() {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      const nextUserId = nextSession?.user.id ?? null;
+      const userChanged = authUserIdRef.current !== nextUserId;
+
+      authUserIdRef.current = nextUserId;
       setSession(nextSession);
-      setProfile(null);
+      if (userChanged) setProfile(null);
       setAccountMenuOpen(false);
       setMobileMenuOpen(false);
       setAuthError("");
       setAuthStatus("ready");
+      if (!nextSession) setActiveView("sessions");
     });
 
     return () => subscription.unsubscribe();
@@ -132,6 +142,27 @@ export function App() {
     };
   }, [userId]);
 
+  useEffect(() => {
+    let isCurrent = true;
+
+    if (!supabase || !profile?.logo_path) {
+      setTeamLogoUrl("");
+      return;
+    }
+
+    supabase.storage
+      .from("team-logos")
+      .createSignedUrl(profile.logo_path, 60 * 60)
+      .then(({ data, error }) => {
+        if (!isCurrent) return;
+        setTeamLogoUrl(error ? "" : data.signedUrl);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [profile?.logo_path]);
+
   async function signInWithGoogle() {
     if (!supabase) {
       setAuthError("Supabase is not configured yet.");
@@ -160,6 +191,7 @@ export function App() {
   function openProfilePlaceholder() {
     setAccountMenuOpen(false);
     setMobileMenuOpen(false);
+    setActiveView("profile");
   }
 
   function renderWorkspaceContent() {
@@ -185,7 +217,7 @@ export function App() {
       );
     }
 
-    if (accountStatus !== "ready") {
+    if (accountStatus !== "ready" || !profile) {
       return (
         <IntroPanel
           body="The app is creating or checking your profile and Free subscription."
@@ -196,21 +228,33 @@ export function App() {
     }
 
     if (!supabase) {
-      return <IntroPanel {...comingSoon[activeTab]} />;
+      const fallbackView = activeView === "profile" ? "sessions" : activeView;
+      return <IntroPanel {...comingSoon[fallbackView]} />;
+    }
+
+    if (activeView === "profile") {
+      return (
+        <ProfileView
+          profile={profile}
+          supabase={supabase}
+          user={session.user}
+          onProfileChange={setProfile}
+        />
+      );
     }
 
     return (
       <>
-        <div className="tab-panel" hidden={activeTab !== "sessions"}>
+        <div className="tab-panel" hidden={activeView !== "sessions"}>
           <SessionsView supabase={supabase} userId={session.user.id} />
         </div>
-        <div className="tab-panel" hidden={activeTab !== "garage"}>
+        <div className="tab-panel" hidden={activeView !== "garage"}>
           <GarageView supabase={supabase} userId={session.user.id} />
         </div>
-        <div className="tab-panel" hidden={activeTab !== "tracks"}>
+        <div className="tab-panel" hidden={activeView !== "tracks"}>
           <TracksView supabase={supabase} userId={session.user.id} />
         </div>
-        <div className="tab-panel" hidden={activeTab !== "reports"}>
+        <div className="tab-panel" hidden={activeView !== "reports"}>
           <ReportsView supabase={supabase} userId={session.user.id} />
         </div>
       </>
@@ -221,8 +265,15 @@ export function App() {
     <main className="app-shell">
       <header className="topbar">
         <div className="brand">
-          <div className="brand-mark" aria-hidden="true">
-            <Settings size={20} />
+          <div
+            className={teamLogoUrl ? "brand-mark brand-mark-logo" : "brand-mark"}
+            aria-hidden="true"
+          >
+            {teamLogoUrl ? (
+              <img alt="" src={teamLogoUrl} />
+            ) : (
+              <Settings size={20} />
+            )}
           </div>
           <div>
             <h1>Setup Log</h1>
@@ -298,10 +349,10 @@ export function App() {
         <nav className="tabs" aria-label="Main views">
           {tabs.map(({ id, label, icon: Icon }) => (
             <button
-              className={activeTab === id ? "tab active" : "tab"}
+              className={activeView === id ? "tab active" : "tab"}
               key={id}
               type="button"
-              onClick={() => setActiveTab(id)}
+              onClick={() => setActiveView(id)}
             >
               <Icon size={17} />
               {label}

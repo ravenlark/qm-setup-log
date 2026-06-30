@@ -59,6 +59,24 @@ button {
   border-radius: 8px;
 }
 
+.brand-mark-logo {
+  width: auto;
+  min-width: 44px;
+  max-width: 168px;
+  padding: 4px;
+  border: 1px solid #d8e1d6;
+  color: inherit;
+  background: #ffffff;
+}
+
+.brand-mark-logo img {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 36px;
+  object-fit: contain;
+}
+
 .brand h1 {
   margin: 0;
   color: #111827;
@@ -366,6 +384,111 @@ button {
   gap: 16px;
 }
 
+.profile-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(300px, 0.75fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.profile-summary {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border: 1px solid #d8e1d6;
+  border-radius: 8px;
+  background: #f8faf7;
+}
+
+.profile-logo-preview {
+  display: grid;
+  width: 74px;
+  height: 74px;
+  flex: 0 0 auto;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid #cbd7c9;
+  border-radius: 8px;
+  color: #49664f;
+  background: #ffffff;
+}
+
+.profile-logo-preview img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.profile-summary strong,
+.profile-summary span {
+  display: block;
+}
+
+.profile-summary strong {
+  color: #111827;
+  font-size: 1.15rem;
+  font-weight: 900;
+}
+
+.profile-summary span {
+  margin-top: 4px;
+  color: #5f6f62;
+  font-weight: 700;
+}
+
+.profile-actions {
+  justify-content: flex-start;
+  margin-top: 16px;
+}
+
+.profile-message {
+  width: fit-content;
+  margin: 14px 0 0;
+}
+
+.profile-upload-status {
+  color: #5f6f62;
+  font-size: 0.88rem;
+  font-weight: 700;
+}
+
+.subscription-card {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.subscription-card div {
+  display: grid;
+  gap: 6px;
+  min-height: 78px;
+  padding: 12px;
+  border: 1px solid #d8e1d6;
+  border-radius: 8px;
+  background: #f8faf7;
+}
+
+.subscription-card span {
+  color: #5f6f62;
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.subscription-card strong {
+  color: #111827;
+  font-size: 1.1rem;
+  font-weight: 900;
+}
+
+.profile-help {
+  margin: 14px 0 0;
+  color: #5f6f62;
+  line-height: 1.5;
+}
+
 .reports-panel {
   display: grid;
   gap: 16px;
@@ -557,6 +680,12 @@ button {
   gap: 10px;
 }
 
+.track-card-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .garage-card {
   display: grid;
   gap: 12px;
@@ -565,6 +694,14 @@ button {
   border-left: 5px solid #168093;
   border-radius: 8px;
   background: #ffffff;
+}
+
+.track-card-system {
+  border-left-color: #8a938c;
+}
+
+.track-card-user {
+  border-left-color: #287a3e;
 }
 
 .garage-card-heading {
@@ -589,10 +726,6 @@ button {
   color: #45546a;
   font-size: 0.9rem;
   line-height: 1.45;
-}
-
-.track-card {
-  max-width: 760px;
 }
 
 .track-card-notes {
@@ -630,6 +763,10 @@ button {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;
+}
+
+.track-stat-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .garage-stat {
@@ -1458,6 +1595,8 @@ textarea {
   .garage-layout,
   .garage-card-layout,
   .track-card-layout,
+  .track-card-grid,
+  .profile-layout,
   .sessions-layout,
   .corner-grid,
   .calculated-grid,
@@ -1481,6 +1620,10 @@ textarea {
 
   .weight-percent-grid {
     grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .subscription-card {
+    grid-template-columns: 1fr;
   }
 
   .session-form {
