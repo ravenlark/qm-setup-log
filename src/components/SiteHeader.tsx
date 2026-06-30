@@ -1,5 +1,4 @@
 import type { ReactNode } from "react";
-import { Settings } from "lucide-react";
 import { Link } from "react-router-dom";
 
 type SiteHeaderProps = {
@@ -17,19 +16,14 @@ export function SiteHeader({
   mobileContent,
   teamLogoUrl,
 }: SiteHeaderProps) {
+  const brandLogoSrc = teamLogoUrl || "/sitelogo.jpg";
+
   const brand = (
-    <>
-      <div
-        className={teamLogoUrl ? "brand-mark brand-mark-logo" : "brand-mark"}
-        aria-hidden="true"
-      >
-        {teamLogoUrl ? <img alt="" src={teamLogoUrl} /> : <Settings size={20} />}
-      </div>
-      <div>
-        <h1>My Setup Log</h1>
-        <p>Quarter midget race notes</p>
-      </div>
-    </>
+    <img
+      className="brand-logo"
+      alt={teamLogoUrl ? "Team logo" : "mysetuplog.com"}
+      src={brandLogoSrc}
+    />
   );
 
   return (
