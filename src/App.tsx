@@ -55,6 +55,13 @@ const comingSoon = {
 };
 
 export function App() {
+  const isPrivacyPolicyPage =
+    window.location.pathname.replace(/\/+$/, "") === "/privacy-policy";
+
+  return isPrivacyPolicyPage ? <PrivacyPolicyPage /> : <WorkspaceApp />;
+}
+
+function WorkspaceApp() {
   const [session, setSession] = useState<Session | null>(null);
   const [activeView, setActiveView] = useState<AppView>("sessions");
   const [authStatus, setAuthStatus] = useState<"loading" | "ready">("loading");
@@ -369,6 +376,331 @@ export function App() {
         {authError ? <p className="auth-error">{authError}</p> : null}
         {renderWorkspaceContent()}
       </section>
+      <footer className="site-footer">
+        <a href="/privacy-policy">Privacy Policy</a>
+      </footer>
+    </main>
+  );
+}
+
+function PrivacyPolicyPage() {
+  return (
+    <main className="app-shell privacy-shell">
+      <header className="topbar">
+        <a className="brand brand-link" href="/">
+          <div className="brand-mark" aria-hidden="true">
+            <Settings size={20} />
+          </div>
+          <div>
+            <h1>My Setup Log</h1>
+            <p>Quarter midget race notes</p>
+          </div>
+        </a>
+      </header>
+
+      <article className="panel privacy-panel">
+        <p className="eyebrow">Privacy Policy</p>
+        <h2>Privacy Policy</h2>
+        <p className="privacy-updated">Last updated June 30, 2026</p>
+
+        <section>
+          <p>
+            MySetupLog (“we,” “us,” or “our”) is operated by LBH MEDIA LLC. This Privacy Policy explains how we collect, use, store, and protect information when you use mysetuplog.com and related services.
+          </p>
+
+          <p>
+            MySetupLog is an online tool for quarter midget racing teams to track car setups, maintenance records, engine information, racing notes, and related team information. We use the information you provide to help organize your racing records and provide insight into your racing program.
+          </p>
+        </section>
+
+        <section>
+          <h3>1. Information We Collect</h3>
+
+          <p>
+            We collect information that you provide directly to us and information that is collected automatically when you use the website.
+          </p>
+
+          <h4>Account Information</h4>
+          <p>
+            When you sign up or log in using your Google account, we may collect basic account information, including:
+          </p>
+          <ul>
+            <li>Your name</li>
+            <li>Your email address</li>
+            <li>Your Google account identifier</li>
+          </ul>
+          <p>
+            We use this information to create, authenticate, and manage your MySetupLog account.
+          </p>
+
+          <h4>Racing Team and Setup Information</h4>
+          <p>
+            When you use MySetupLog, you may provide information related to your racing team and racing program, including:
+          </p>
+          <ul>
+            <li>Team name</li>
+            <li>Team logo</li>
+            <li>Driver names</li>
+            <li>Car information</li>
+            <li>Engine information</li>
+            <li>Maintenance records</li>
+            <li>Setup notes</li>
+            <li>Track and event notes</li>
+            <li>Tire, gearing, weight, and handling notes</li>
+            <li>Race results or performance observations</li>
+            <li>Other information you choose to enter into the service</li>
+          </ul>
+          <p>
+            We do not intentionally collect driver ages.
+          </p>
+
+          <h4>Uploaded Content</h4>
+          <p>
+            If you upload a team logo or other image, that content is stored using Supabase and used to provide the features of MySetupLog, such as displaying the logo within your account.
+          </p>
+          <p>
+            You are responsible for ensuring that you have the right to upload and use any logos, images, or other content you provide.
+          </p>
+
+          <h4>Usage and Technical Information</h4>
+          <p>
+            We may automatically collect certain technical and usage information, including:
+          </p>
+          <ul>
+            <li>IP address</li>
+            <li>Browser type</li>
+            <li>Device type</li>
+            <li>Operating system</li>
+            <li>Pages viewed</li>
+            <li>Features used</li>
+            <li>Date and time of visits</li>
+            <li>Approximate location based on IP address</li>
+            <li>Error logs and performance data</li>
+          </ul>
+          <p>
+            We may use tools such as Google Analytics or similar services to understand how users interact with the website and to improve the service.
+          </p>
+        </section>
+
+        <section>
+          <h3>2. How We Use Your Information</h3>
+
+          <p>We use the information we collect to:</p>
+          <ul>
+            <li>Create and manage user accounts</li>
+            <li>Authenticate users through Google login</li>
+            <li>Provide the features and functionality of MySetupLog</li>
+            <li>Store and organize team, car, engine, maintenance, setup, and racing records</li>
+            <li>Generate insights based on the information you provide</li>
+            <li>Improve website performance, usability, and reliability</li>
+            <li>Understand how users interact with the website</li>
+            <li>Troubleshoot issues and fix bugs</li>
+            <li>Protect the security and integrity of the service</li>
+            <li>Communicate with you about your account, support requests, or important service updates</li>
+            <li>Comply with legal obligations</li>
+          </ul>
+        </section>
+
+        <section>
+          <h3>3. User-Provided Racing Data</h3>
+
+          <p>
+            The racing-related information you enter into MySetupLog, including setup notes, maintenance records, car information, engine information, team details, driver names, and related racing notes, remains your information.
+          </p>
+
+          <p>
+            We use this data to provide the service to you, including organizing your records and generating insights for your racing program.
+          </p>
+
+          <p>
+            We do not sell this information. We do not share this information with other racing teams. We do not use your private racing information to provide services to other racing teams. We do not publicly display your private racing information unless you choose to share it or make it public through a feature of the service.
+          </p>
+        </section>
+
+        <section>
+          <h3>4. How We Share Information</h3>
+
+          <p>We do not sell your personal information.</p>
+
+          <p>
+            We do not share your team, car, engine, maintenance, setup, or racing notes with third parties for their own marketing or advertising purposes.
+          </p>
+
+          <p>
+            We may share information with trusted service providers that help us operate MySetupLog. These providers process information on our behalf and only as needed to provide their services to us.
+          </p>
+
+          <p>These providers may include:</p>
+          <ul>
+            <li><strong>Google</strong>, for account authentication and login</li>
+            <li><strong>Supabase</strong>, for database storage, uploaded logo storage, authentication-related services, and backend infrastructure</li>
+            <li><strong>Vercel</strong>, for website hosting, frontend delivery, request processing, logs, and related infrastructure</li>
+            <li><strong>Google Analytics</strong> or similar analytics providers, for website usage analytics</li>
+            <li>Other infrastructure, security, logging, analytics, communication, or support providers we may use to operate and improve the service</li>
+          </ul>
+
+          <p>
+            We may also disclose information if required by law, legal process, or government request, or if we believe disclosure is necessary to protect our rights, users, service, or business.
+          </p>
+        </section>
+
+        <section>
+          <h3>5. Cookies and Analytics</h3>
+
+          <p>
+            MySetupLog may use cookies, local storage, analytics scripts, and similar technologies to operate the website, keep users signed in, remember preferences, analyze website traffic, and improve the service.
+          </p>
+
+          <p>
+            We may use Google Analytics or similar tools to collect information about how users interact with the website. These tools may collect information such as pages visited, time spent on the site, browser type, device type, and general location.
+          </p>
+
+          <p>
+            You can adjust your browser settings to block or delete cookies. Some parts of the website may not function properly if cookies are disabled.
+          </p>
+        </section>
+
+        <section>
+          <h3>6. Data Storage and Processing</h3>
+
+          <p>
+            User information and service data are stored and processed using third-party infrastructure providers, including Supabase and Vercel.
+          </p>
+
+          <p>
+            Supabase may store account information, racing data, uploaded logos, and related service data. Vercel may process website traffic, frontend requests, logs, and related technical information needed to deliver the website.
+          </p>
+
+          <p>
+            These providers may process information in the United States or other locations where they operate.
+          </p>
+        </section>
+
+        <section>
+          <h3>7. Data Security</h3>
+
+          <p>
+            We use reasonable technical and organizational measures to protect your information from unauthorized access, loss, misuse, or alteration.
+          </p>
+
+          <p>
+            However, no website, database, server, or internet transmission is completely secure. We cannot guarantee absolute security.
+          </p>
+
+          <p>
+            You are responsible for protecting access to your Google account and any devices you use to access MySetupLog.
+          </p>
+        </section>
+
+        <section>
+          <h3>8. Data Retention</h3>
+
+          <p>
+            We retain your information for as long as your account remains active or as long as needed to provide the service.
+          </p>
+
+          <p>We may also retain certain information as necessary to:</p>
+          <ul>
+            <li>Provide MySetupLog's features</li>
+            <li>Maintain backups</li>
+            <li>Troubleshoot issues</li>
+            <li>Comply with legal obligations</li>
+            <li>Resolve disputes</li>
+            <li>Enforce our terms or policies</li>
+            <li>Protect the security and integrity of the service</li>
+          </ul>
+
+          <p>
+            MySetupLog does not currently provide an automated account deletion feature. If you would like to request deletion of your account or associated data, you may contact us using the contact method listed below.
+          </p>
+
+          <p>
+            If you request deletion of your account, we will take reasonable steps to delete or de-identify your personal information and user-provided racing data, unless we are required or permitted to retain it by law, for backups, security, dispute resolution, or legitimate business purposes.
+          </p>
+        </section>
+
+        <section>
+          <h3>9. Your Choices and Rights</h3>
+
+          <p>
+            Depending on where you live, you may have certain rights regarding your personal information. These may include the right to:
+          </p>
+
+          <ul>
+            <li>Access the personal information we have about you</li>
+            <li>Correct inaccurate information</li>
+            <li>Request deletion of your information</li>
+            <li>Request a copy of your information</li>
+            <li>Object to or restrict certain processing</li>
+            <li>Opt out of certain analytics or tracking technologies where applicable</li>
+          </ul>
+
+          <p>
+            To make a privacy request, contact us using the contact method listed below.
+          </p>
+
+          <p>
+            We may need to verify your identity before completing certain requests.
+          </p>
+        </section>
+
+        <section>
+          <h3>10. Children's Privacy</h3>
+
+          <p>
+            MySetupLog is intended for use by racing teams, parents, guardians, and other adults involved in quarter midget racing.
+          </p>
+
+          <p>
+            The service is not intended for children under the age of 13. We do not knowingly collect account information directly from children under 13.
+          </p>
+
+          <p>
+            Because quarter midget racing often involves youth drivers, users may enter driver names as part of their racing records. We do not intentionally collect driver ages. Users are responsible for ensuring that they have the appropriate authority to enter and manage any driver information they provide.
+          </p>
+
+          <p>
+            If you believe a child has provided personal information to us without appropriate consent, please contact us using the contact method listed below, and we will take reasonable steps to review and delete the information if appropriate.
+          </p>
+        </section>
+
+        <section>
+          <h3>11. International Users</h3>
+
+          <p>
+            MySetupLog is operated from the United States. If you access the service from outside the United States, your information may be transferred to, stored in, and processed in the United States or other countries where our service providers operate.
+          </p>
+
+          <p>
+            By using MySetupLog, you understand that your information may be processed in countries that may have privacy laws different from those in your country of residence.
+          </p>
+        </section>
+
+        <section>
+          <h3>12. Changes to This Privacy Policy</h3>
+
+          <p>
+            We may update this Privacy Policy from time to time. When we make changes, we will update the effective date at the top of this page.
+          </p>
+
+          <p>
+            Your continued use of MySetupLog after changes are posted means you accept the updated Privacy Policy.
+          </p>
+        </section>
+
+        <section>
+          <h3>13. Contact Us</h3>
+
+          <p>
+            If you have questions about this Privacy Policy, how your information is handled, or would like to make a privacy request, contact us at:
+          </p>
+
+          <p>
+            <strong>LBH MEDIA LLC</strong><br/>
+            Website: <a href="https://mysetuplog.com">https://mysetuplog.com</a>
+          </p>
+        </section>
+      </article>
     </main>
   );
 }
