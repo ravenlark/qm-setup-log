@@ -24,6 +24,7 @@ create table public.profiles (
 create table public.subscription_plans (
   id uuid primary key default gen_random_uuid(),
   name text not null unique,
+  display_name text,
   max_cars integer,
   max_engines integer,
   is_active boolean not null default true,

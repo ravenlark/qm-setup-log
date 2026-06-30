@@ -80,7 +80,9 @@ export function App() {
       "Signed in"
     );
   }, [session]);
-  const teamLabel = profile?.team_name.trim() || "Team name not set";
+  const teamLabel = profile
+    ? profile.team_name.trim() || "Team name not set"
+    : "Loading team...";
 
   useEffect(() => {
     if (!supabase) {
@@ -195,6 +197,10 @@ export function App() {
   }
 
   function renderWorkspaceContent() {
+    if (authStatus === "loading") {
+      return <LoadingPanel message="Loading your workspace..." />;
+    }
+
     if (!session) {
       return (
         <IntroPanel
@@ -217,14 +223,12 @@ export function App() {
       );
     }
 
+    if (accountStatus === "error") {
+      return <LoadingPanel message="Account setup needs attention." />;
+    }
+
     if (accountStatus !== "ready" || !profile) {
-      return (
-        <IntroPanel
-          body="The app is creating or checking your profile and Free subscription."
-          eyebrow="Account"
-          title="Finishing account setup."
-        />
-      );
+      return <LoadingPanel message="Loading your workspace..." />;
     }
 
     if (!supabase) {
@@ -394,6 +398,14 @@ function AccountMenuContent({
         <LogOut size={17} />
         Log Out
       </button>
+    </div>
+  );
+}
+
+function LoadingPanel({ message }: { message: string }) {
+  return (
+    <div className="panel loading-panel" aria-busy="true">
+      <div className="empty-state">{message}</div>
     </div>
   );
 }

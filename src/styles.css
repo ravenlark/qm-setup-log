@@ -321,6 +321,10 @@ button {
   line-height: 1.6;
 }
 
+.loading-panel {
+  padding: 16px;
+}
+
 .auth-error {
   padding: 12px 14px;
   border: 1px solid #e4b4aa;
@@ -470,6 +474,10 @@ button {
   background: #f8faf7;
 }
 
+.subscription-card-wide {
+  grid-column: 1 / -1;
+}
+
 .subscription-card span {
   color: #5f6f62;
   font-size: 0.78rem;
@@ -487,6 +495,13 @@ button {
   margin: 14px 0 0;
   color: #5f6f62;
   line-height: 1.5;
+}
+
+.profile-billing-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
 }
 
 .reports-panel {
@@ -831,6 +846,18 @@ button {
   grid-column: 1 / -1;
 }
 
+.limit-notice {
+  margin-bottom: 14px;
+  padding: 8px 10px;
+  border: 1px solid #f0c76f;
+  border-radius: 8px;
+  color: #833f08;
+  background: #fff7df;
+  font-size: 0.68rem;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
 .track-detail-column {
   display: grid;
   gap: 16px;
@@ -1012,6 +1039,7 @@ textarea {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  gap: 8px;
   min-height: 42px;
   border: 1px solid #cbd7c9;
   border-radius: 8px;

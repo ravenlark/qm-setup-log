@@ -32,6 +32,11 @@ import {
   type MaintenanceType,
 } from "../data/engines";
 import { fetchSessions, type SetupSession } from "../data/sessions";
+import {
+  fetchAccountLimits,
+  formatLimitUsage,
+  type AccountLimits,
+} from "../data/subscriptions";
 
 const emptyEngineForm: EngineInput = {
   engine_type_id: "",
@@ -79,6 +84,7 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
   const [maintenanceEntries, setMaintenanceEntries] = useState<
     EngineMaintenanceWithType[]
   >([]);
+  const [accountLimits, setAccountLimits] = useState<AccountLimits | null>(null);
   const [editingCarId, setEditingCarId] = useState("");
   const [editingEngineId, setEditingEngineId] = useState("");
   const [editingMaintenanceId, setEditingMaintenanceId] = useState("");
@@ -147,6 +153,11 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
     return stats;
   }, [engines, maintenanceByEngineId, sessions]);
 
+  const canCreateCar =
+    accountLimits?.maxCars == null || cars.length < accountLimits.maxCars;
+  const canCreateEngine =
+    accountLimits?.maxEngines == null || engines.length < accountLimits.maxEngines;
+
   useEffect(() => {
     let isCurrent = true;
     setStatus("loading");
@@ -159,6 +170,7 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
       fetchMaintenanceTypes(supabase),
       fetchEngines(supabase),
       fetchSessions(supabase),
+      fetchAccountLimits(supabase),
     ])
       .then(
         async ([
@@ -168,6 +180,7 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
           nextMaintenanceTypes,
           nextEngines,
           nextSessions,
+          nextLimits,
         ]) => {
           const nextMaintenanceEntries = (
             await Promise.all(
@@ -182,6 +195,7 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
           setMaintenanceTypes(nextMaintenanceTypes);
           setEngines(nextEngines);
           setSessions(nextSessions);
+          setAccountLimits(nextLimits);
           setMaintenanceEntries(nextMaintenanceEntries);
           setEngineForm((current) => ({
             ...current,
@@ -207,8 +221,14 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
   }, [supabase]);
 
   function startCarAdd() {
+    if (!canCreateCar) {
+      setMessage(limitMessage("car", accountLimits));
+      return;
+    }
+
     setEditingCarId("");
     setCarForm(emptyCarForm);
+    setMessage("");
     setActiveModal("car");
   }
 
@@ -231,11 +251,17 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
   }
 
   function startEngineAdd() {
+    if (!canCreateEngine) {
+      setMessage(limitMessage("engine", accountLimits));
+      return;
+    }
+
     setEditingEngineId("");
     setEngineForm({
       ...emptyEngineForm,
       engine_type_id: engineTypes[0]?.id || "",
     });
+    setMessage("");
     setActiveModal("engine");
   }
 
@@ -314,6 +340,11 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
         const withoutSaved = current.filter((car) => car.id !== saved.id);
         return [...withoutSaved, saved].sort(sortCars);
       });
+      setAccountLimits((current) =>
+        current && !editingCarId
+          ? { ...current, carCount: current.carCount + 1 }
+          : current,
+      );
       resetCarForm();
       setMessage(editingCarId ? "Car updated." : "Car added.");
     } catch (error) {
@@ -334,6 +365,9 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
     try {
       await deleteCar(supabase, car.id);
       setCars((current) => current.filter((item) => item.id !== car.id));
+      setAccountLimits((current) =>
+        current ? { ...current, carCount: Math.max(0, current.carCount - 1) } : current,
+      );
       setEngineAssignments((current) =>
         current.filter((assignment) => assignment.car_id !== car.id),
       );
@@ -373,6 +407,11 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
         const withoutSaved = current.filter((engine) => engine.id !== saved.id);
         return [...withoutSaved, savedWithType].sort(sortEngines);
       });
+      setAccountLimits((current) =>
+        current && !editingEngineId
+          ? { ...current, engineCount: current.engineCount + 1 }
+          : current,
+      );
       resetEngineForm();
       setMessage(editingEngineId ? "Engine updated." : "Engine added.");
     } catch (error) {
@@ -393,6 +432,11 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
     try {
       await deleteEngine(supabase, engine.id);
       setEngines((current) => current.filter((item) => item.id !== engine.id));
+      setAccountLimits((current) =>
+        current
+          ? { ...current, engineCount: Math.max(0, current.engineCount - 1) }
+          : current,
+      );
       setEngineAssignments((current) =>
         current.filter((assignment) => assignment.engine_id !== engine.id),
       );
@@ -506,7 +550,7 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
             <button
               aria-label="Add engine"
               className="icon-button"
-              disabled={status === "saving"}
+              disabled={status === "saving" || !canCreateEngine}
               type="button"
               onClick={startEngineAdd}
             >
@@ -514,6 +558,12 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
             </button>
           </div>
         </div>
+
+        {accountLimits && !canCreateEngine ? (
+          <div className="limit-notice">
+            {limitMessage("engine", accountLimits)}
+          </div>
+        ) : null}
 
         {status === "loading" ? (
           <div className="empty-state">Loading engines...</div>
@@ -550,7 +600,7 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
             <button
               aria-label="Add car"
               className="icon-button"
-              disabled={status === "saving"}
+              disabled={status === "saving" || !canCreateCar}
               type="button"
               onClick={startCarAdd}
             >
@@ -558,6 +608,10 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
             </button>
           </div>
         </div>
+
+        {accountLimits && !canCreateCar ? (
+          <div className="limit-notice">{limitMessage("car", accountLimits)}</div>
+        ) : null}
 
         {status === "loading" ? (
           <div className="empty-state">Loading cars...</div>
@@ -1148,6 +1202,18 @@ function localDateValue(date = new Date()) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+function limitMessage(resource: "car" | "engine", limits: AccountLimits | null) {
+  if (!limits) return "Your current plan limit has been reached.";
+
+  const usage =
+    resource === "car"
+      ? formatLimitUsage(limits.carCount, limits.maxCars)
+      : formatLimitUsage(limits.engineCount, limits.maxEngines);
+  const label = resource === "car" ? "cars" : "engines";
+
+  return `${limits.planDisplayName} plan limit reached: ${usage} ${label}. Upgrade to Premium for unlimited ${label}.`;
 }
 
 function formatDate(value: string) {

@@ -1,6 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
 import type { SupabaseClient, User } from "@supabase/supabase-js";
-import { Camera, CreditCard, Save } from "lucide-react";
+import { Camera, CreditCard, Save, Sparkles, XCircle } from "lucide-react";
+import {
+  fetchAccountLimits,
+  formatPlanAllowance,
+  formatPlanPrice,
+  formatRenewalDate,
+  formatSubscriptionStatus,
+  type AccountLimits,
+} from "../data/subscriptions";
 import {
   updateUserProfile,
   type UserProfile,
@@ -11,26 +19,6 @@ type ProfileViewProps = {
   user: User;
   profile: UserProfile;
   onProfileChange: (profile: UserProfile) => void;
-};
-
-type SubscriptionSummary = {
-  planName: string;
-  status: string;
-  maxCars: number | null;
-  maxEngines: number | null;
-  currentPeriodEnd: string | null;
-};
-
-type SubscriptionPlanRow = {
-  name: string;
-  max_cars: number | null;
-  max_engines: number | null;
-};
-
-type SubscriptionRow = {
-  status: string;
-  current_period_end: string | null;
-  subscription_plans: SubscriptionPlanRow | SubscriptionPlanRow[] | null;
 };
 
 const logoBucket = "team-logos";
@@ -44,12 +32,14 @@ export function ProfileView({
   const [teamName, setTeamName] = useState(profile.team_name);
   const [logoPath, setLogoPath] = useState(profile.logo_path);
   const [logoUrl, setLogoUrl] = useState("");
-  const [subscription, setSubscription] = useState<SubscriptionSummary | null>(
-    null,
-  );
+  const [accountLimits, setAccountLimits] = useState<AccountLimits | null>(null);
   const [isSavingProfile, setIsSavingProfile] = useState(false);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isStartingCheckout, setIsStartingCheckout] = useState(false);
+  const [isOpeningPortal, setIsOpeningPortal] = useState(false);
+  const [isOpeningCancelFlow, setIsOpeningCancelFlow] = useState(false);
   const [message, setMessage] = useState("");
+  const [billingMessage, setBillingMessage] = useState("");
 
   const userLabel = useMemo(
     () =>
@@ -93,32 +83,14 @@ export function ProfileView({
   useEffect(() => {
     let isCurrent = true;
 
-    supabase
-      .from("account_subscriptions")
-      .select(
-        "status, current_period_end, subscription_plans(name, max_cars, max_engines)",
-      )
-      .eq("user_id", user.id)
-      .maybeSingle()
-      .then(({ data, error }) => {
+    fetchAccountLimits(supabase)
+      .then((limits) => {
         if (!isCurrent) return;
-        if (error || !data) {
-          setSubscription(null);
-          return;
-        }
-
-        const row = data as SubscriptionRow;
-        const plan = Array.isArray(row.subscription_plans)
-          ? row.subscription_plans[0]
-          : row.subscription_plans;
-
-        setSubscription({
-          currentPeriodEnd: row.current_period_end,
-          maxCars: plan?.max_cars ?? null,
-          maxEngines: plan?.max_engines ?? null,
-          planName: plan?.name ?? "Free",
-          status: row.status,
-        });
+        setAccountLimits(limits);
+      })
+      .catch(() => {
+        if (!isCurrent) return;
+        setAccountLimits(null);
       });
 
     return () => {
@@ -180,6 +152,62 @@ export function ProfileView({
       setIsUploadingLogo(false);
     }
   }
+
+  async function handleUpgradeToPremium() {
+    setBillingMessage("");
+    setIsStartingCheckout(true);
+
+    try {
+      await redirectToBillingFunction(supabase, "create-checkout-session");
+    } catch (error) {
+      setBillingMessage(
+        error instanceof Error ? error.message : "Checkout could not be started.",
+      );
+      setIsStartingCheckout(false);
+    }
+  }
+
+  async function handleManageSubscription() {
+    setBillingMessage("");
+    setIsOpeningPortal(true);
+
+    try {
+      await redirectToBillingFunction(supabase, "create-billing-portal-session");
+    } catch (error) {
+      setBillingMessage(
+        error instanceof Error
+          ? error.message
+          : "Billing portal could not be opened.",
+      );
+      setIsOpeningPortal(false);
+    }
+  }
+
+  async function handleCancelSubscription() {
+    setBillingMessage("");
+    setIsOpeningCancelFlow(true);
+
+    try {
+      await redirectToBillingFunction(supabase, "create-billing-portal-session", {
+        flow: "cancel",
+      });
+    } catch (error) {
+      setBillingMessage(
+        error instanceof Error
+          ? error.message
+          : "Cancellation flow could not be opened.",
+      );
+      setIsOpeningCancelFlow(false);
+    }
+  }
+
+  const isPremium =
+    accountLimits?.planName.toLowerCase() === "premium" &&
+    ["active", "trialing"].includes(accountLimits.status.toLowerCase());
+  const isCanceling = Boolean(accountLimits?.cancelAtPeriodEnd);
+  const isBillingLoading = !accountLimits;
+  const canManageStripeSubscription =
+    isPremium && accountLimits?.provider === "stripe";
 
   return (
     <div className="profile-layout">
@@ -251,44 +279,148 @@ export function ProfileView({
         </div>
 
         <div className="subscription-card">
-          <div>
-            <span>Current Plan</span>
-            <strong>{subscription?.planName ?? "Free"}</strong>
-          </div>
-          <div>
-            <span>Status</span>
-            <strong>{subscription?.status ?? "Active"}</strong>
-          </div>
-          <div>
-            <span>Cars</span>
-            <strong>{formatLimit(subscription?.maxCars)}</strong>
-          </div>
-          <div>
-            <span>Engines</span>
-            <strong>{formatLimit(subscription?.maxEngines)}</strong>
-          </div>
-          <div>
-            <span>Renews</span>
-            <strong>{formatDate(subscription?.currentPeriodEnd)}</strong>
-          </div>
+          {isBillingLoading ? (
+            <div className="subscription-card-wide">
+              <span>Current Plan</span>
+              <strong>Loading...</strong>
+            </div>
+          ) : (
+            <>
+              <div className={isPremium ? undefined : "subscription-card-wide"}>
+                <span>Current Plan</span>
+                <strong>{accountLimits.planDisplayName}</strong>
+              </div>
+              {isPremium ? (
+                <div>
+                  <span>Status</span>
+                  <strong>
+                    {formatSubscriptionStatus(accountLimits.status, isCanceling)}
+                  </strong>
+                </div>
+              ) : null}
+              {isPremium ? (
+                <>
+                  <div>
+                    <span>Price</span>
+                    <strong>
+                      {formatPlanPrice(
+                        accountLimits.priceCents,
+                        accountLimits.priceCurrency,
+                      )}
+                    </strong>
+                  </div>
+                  <div>
+                    <span>{isCanceling ? "Ends" : "Renews"}</span>
+                    <strong>
+                      {formatRenewalDate(accountLimits.currentPeriodEnd)}
+                    </strong>
+                  </div>
+                </>
+              ) : null}
+              <div>
+                <span>Engines</span>
+                <strong>
+                  {formatPlanAllowance(
+                    accountLimits.engineCount,
+                    accountLimits.maxEngines,
+                  )}
+                </strong>
+              </div>
+              <div>
+                <span>Cars</span>
+                <strong>
+                  {formatPlanAllowance(accountLimits.carCount, accountLimits.maxCars)}
+                </strong>
+              </div>
+            </>
+          )}
         </div>
 
-        <p className="profile-help">
-          Plan changes and billing management will live here once payments are
-          wired in.
-        </p>
+        <div className="profile-billing-actions">
+          {isBillingLoading ? null : canManageStripeSubscription ? (
+            <button
+              className="secondary-button"
+              disabled={isOpeningPortal}
+              type="button"
+              onClick={handleManageSubscription}
+            >
+              <CreditCard size={17} />
+              {isOpeningPortal ? "Opening Billing" : "Manage Subscription"}
+            </button>
+          ) : null}
+          {!isBillingLoading && canManageStripeSubscription && !isCanceling ? (
+            <button
+              className="secondary-button"
+              disabled={isOpeningCancelFlow}
+              type="button"
+              onClick={handleCancelSubscription}
+            >
+              <XCircle size={17} />
+              {isOpeningCancelFlow ? "Opening Cancellation" : "Cancel Subscription"}
+            </button>
+          ) : null}
+          {!isBillingLoading && !isPremium ? (
+            <button
+              className="primary-button"
+              disabled={isStartingCheckout}
+              type="button"
+              onClick={handleUpgradeToPremium}
+            >
+              <Sparkles size={17} />
+              {isStartingCheckout ? "Opening Checkout" : "Upgrade to Premium"}
+            </button>
+          ) : null}
+        </div>
+
+        {billingMessage ? (
+          <p className="auth-error profile-message">{billingMessage}</p>
+        ) : null}
       </section>
     </div>
   );
 }
 
-function formatLimit(value: number | null | undefined) {
-  return value == null ? "Unlimited" : value.toString();
+async function redirectToBillingFunction(
+  supabase: SupabaseClient,
+  functionName: string,
+  body?: Record<string, string>,
+) {
+  const { data, error } = await supabase.functions.invoke(functionName, {
+    body,
+    method: "POST",
+  });
+
+  if (error) throw new Error(await functionErrorMessage(error));
+
+  const url =
+    typeof data === "object" && data && "url" in data ? String(data.url) : "";
+
+  if (!url) throw new Error("Billing session did not return a URL.");
+
+  window.location.href = url;
 }
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return "--";
-  return new Intl.DateTimeFormat(undefined, {
-    dateStyle: "medium",
-  }).format(new Date(value));
+async function functionErrorMessage(error: unknown) {
+  if (
+    error &&
+    typeof error === "object" &&
+    "context" in error &&
+    error.context instanceof Response
+  ) {
+    try {
+      const body = await error.context.clone().json();
+      if (body && typeof body.error === "string") return body.error;
+    } catch {
+      try {
+        const text = await error.context.clone().text();
+        if (text) return text;
+      } catch {
+        // Fall through to the generic message below.
+      }
+    }
+  }
+
+  return error instanceof Error
+    ? error.message
+    : "Billing session could not be started.";
 }
