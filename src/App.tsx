@@ -13,6 +13,15 @@ import {
   User,
   X,
 } from "lucide-react";
+import {
+  Link,
+  Navigate,
+  NavLink,
+  Route,
+  Routes,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
 import { GarageView } from "./components/GarageView";
 import { ProfileView } from "./components/ProfileView";
 import { ReportsView } from "./components/ReportsView";
@@ -25,11 +34,24 @@ type AppTab = "sessions" | "garage" | "tracks" | "reports";
 type AppView = AppTab | "profile";
 
 const tabs = [
-  { id: "sessions", label: "Sessions", icon: ClipboardList },
-  { id: "garage", label: "My Garage", icon: Car },
-  { id: "tracks", label: "Tracks", icon: Flag },
-  { id: "reports", label: "Reports", icon: BarChart3 },
-] satisfies Array<{ id: AppTab; label: string; icon: typeof ClipboardList }>;
+  { id: "sessions", label: "Sessions", icon: ClipboardList, path: "/app/sessions" },
+  { id: "garage", label: "My Garage", icon: Car, path: "/app/garage" },
+  { id: "tracks", label: "Tracks", icon: Flag, path: "/app/tracks" },
+  { id: "reports", label: "Reports", icon: BarChart3, path: "/app/reports" },
+] satisfies Array<{
+  id: AppTab;
+  label: string;
+  icon: typeof ClipboardList;
+  path: string;
+}>;
+
+const appViews = new Set<AppView>([
+  "sessions",
+  "garage",
+  "tracks",
+  "reports",
+  "profile",
+]);
 
 const comingSoon = {
   sessions: {
@@ -55,15 +77,24 @@ const comingSoon = {
 };
 
 export function App() {
-  const isPrivacyPolicyPage =
-    window.location.pathname.replace(/\/+$/, "") === "/privacy-policy";
-
-  return isPrivacyPolicyPage ? <PrivacyPolicyPage /> : <WorkspaceApp />;
+  return (
+    <Routes>
+      <Route path="/" element={<Navigate to="/app/sessions" replace />} />
+      <Route path="/app" element={<Navigate to="/app/sessions" replace />} />
+      <Route path="/app/:workspaceView" element={<WorkspaceApp />} />
+      <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+      <Route path="*" element={<NotFoundPage />} />
+    </Routes>
+  );
 }
 
 function WorkspaceApp() {
+  const navigate = useNavigate();
+  const { workspaceView } = useParams();
+  const activeView = appViews.has(workspaceView as AppView)
+    ? (workspaceView as AppView)
+    : null;
   const [session, setSession] = useState<Session | null>(null);
-  const [activeView, setActiveView] = useState<AppView>("sessions");
   const [authStatus, setAuthStatus] = useState<"loading" | "ready">("loading");
   const [accountStatus, setAccountStatus] = useState<
     "idle" | "loading" | "ready" | "error"
@@ -117,11 +148,11 @@ function WorkspaceApp() {
       setMobileMenuOpen(false);
       setAuthError("");
       setAuthStatus("ready");
-      if (!nextSession) setActiveView("sessions");
+      if (!nextSession) navigate("/app/sessions", { replace: true });
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
     if (!supabase || !session?.user) {
@@ -195,15 +226,20 @@ function WorkspaceApp() {
     setMobileMenuOpen(false);
     const { error } = await supabase.auth.signOut();
     if (error) setAuthError(error.message);
+    else navigate("/app/sessions");
   }
 
   function openProfilePlaceholder() {
     setAccountMenuOpen(false);
     setMobileMenuOpen(false);
-    setActiveView("profile");
+    navigate("/app/profile");
   }
 
   function renderWorkspaceContent() {
+    if (!activeView) {
+      return <NotFoundPage />;
+    }
+
     if (authStatus === "loading") {
       return <LoadingPanel message="Loading your workspace..." />;
     }
@@ -270,6 +306,10 @@ function WorkspaceApp() {
         </div>
       </>
     );
+  }
+
+  if (!activeView) {
+    return <NotFoundPage />;
   }
 
   return (
@@ -358,16 +398,15 @@ function WorkspaceApp() {
 
       {session ? (
         <nav className="tabs" aria-label="Main views">
-          {tabs.map(({ id, label, icon: Icon }) => (
-            <button
-              className={activeView === id ? "tab active" : "tab"}
+          {tabs.map(({ id, label, icon: Icon, path }) => (
+            <NavLink
+              className={({ isActive }) => (isActive ? "tab active" : "tab")}
               key={id}
-              type="button"
-              onClick={() => setActiveView(id)}
+              to={path}
             >
               <Icon size={17} />
               {label}
-            </button>
+            </NavLink>
           ))}
         </nav>
       ) : null}
@@ -377,7 +416,7 @@ function WorkspaceApp() {
         {renderWorkspaceContent()}
       </section>
       <footer className="site-footer">
-        <a href="/privacy-policy">Privacy Policy</a>
+        <Link to="/privacy-policy">Privacy Policy</Link>
       </footer>
     </main>
   );
@@ -387,7 +426,7 @@ function PrivacyPolicyPage() {
   return (
     <main className="app-shell privacy-shell">
       <header className="topbar">
-        <a className="brand brand-link" href="/">
+        <Link className="brand brand-link" to="/app/sessions">
           <div className="brand-mark" aria-hidden="true">
             <Settings size={20} />
           </div>
@@ -395,7 +434,7 @@ function PrivacyPolicyPage() {
             <h1>My Setup Log</h1>
             <p>Quarter midget race notes</p>
           </div>
-        </a>
+        </Link>
       </header>
 
       <article className="panel privacy-panel">
@@ -700,6 +739,35 @@ function PrivacyPolicyPage() {
             Website: <a href="https://mysetuplog.com">https://mysetuplog.com</a>
           </p>
         </section>
+      </article>
+    </main>
+  );
+}
+
+function NotFoundPage() {
+  return (
+    <main className="app-shell privacy-shell">
+      <header className="topbar">
+        <Link className="brand brand-link" to="/">
+          <div className="brand-mark" aria-hidden="true">
+            <Settings size={20} />
+          </div>
+          <div>
+            <h1>My Setup Log</h1>
+            <p>Quarter midget race notes</p>
+          </div>
+        </Link>
+      </header>
+
+      <article className="panel privacy-panel">
+        <p className="eyebrow">Not Found</p>
+        <h2>Page not found</h2>
+        <p>The page you were looking for is not available.</p>
+        <div className="not-found-actions">
+          <Link className="primary-button" to="/app/sessions">
+            Back to My Setup Log
+          </Link>
+        </div>
       </article>
     </main>
   );
