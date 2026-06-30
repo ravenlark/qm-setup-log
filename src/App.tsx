@@ -675,7 +675,7 @@ function PrivacyPolicyPage() {
       </header>
 
       <article className="panel privacy-panel">
-        <p className="eyebrow">Privacy Policy</p>
+        <p className="eyebrow"></p>
         <h2>Privacy Policy</h2>
         <p className="privacy-updated">Last updated June 30, 2026</p>
 
