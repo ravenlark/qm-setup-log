@@ -245,6 +245,7 @@ button {
   padding: 0 10px;
   color: #526154;
   font-weight: 700;
+  text-decoration: none;
 }
 
 .tab.active {
@@ -1093,11 +1094,16 @@ textarea {
   background: #1f3526;
   font-weight: 800;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .primary-button:disabled {
   cursor: not-allowed;
   opacity: 0.58;
+}
+
+.not-found-actions {
+  display: flex;
 }
 
 .secondary-button,
