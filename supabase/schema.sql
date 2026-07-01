@@ -67,11 +67,17 @@ create table public.tracks (
   id uuid primary key default gen_random_uuid(),
   name text not null,
   location text,
+  street_address text,
+  city text,
+  state text,
+  postal_code text,
+  country text not null default 'US',
   surface text,
   length text,
   is_banked boolean not null default false,
   is_system boolean not null default false,
   created_by uuid references auth.users(id) on delete set null,
+  archived_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -86,6 +92,7 @@ create table public.track_notes (
   tire_notes text,
   facility_notes text,
   notes text,
+  is_favorite boolean not null default false,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (user_id, track_id)
@@ -263,6 +270,12 @@ create unique index account_subscriptions_provider_subscription_idx
 
 create index tracks_created_by_idx
   on public.tracks (created_by);
+
+create index tracks_created_by_active_name_idx
+  on public.tracks (created_by, archived_at, name);
+
+create index tracks_state_name_idx
+  on public.tracks (state, name);
 
 create index track_notes_user_track_idx
   on public.track_notes (user_id, track_id);

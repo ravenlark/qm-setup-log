@@ -129,6 +129,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
     () => new Map(tracks.map((track) => [track.id, track])),
     [tracks],
   );
+  const trackOptions = useMemo(() => selectableTracks(tracks), [tracks]);
 
   const weightStats = useMemo(() => calculateWeightStats(sessionForm), [
     sessionForm,
@@ -180,7 +181,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
     Promise.all([
       fetchCars(supabase),
       fetchEngines(supabase),
-      fetchTracks(supabase, userId),
+      fetchTracks(supabase, userId, { includeArchived: true }),
       fetchActiveEngineAssignments(supabase),
       fetchSessions(supabase),
     ])
@@ -202,7 +203,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
             ...current,
             car_id: carId,
             engine_id: engineId,
-            track_id: current.track_id || nextTracks[0]?.id || "",
+            track_id: current.track_id || defaultTrackId(nextTracks),
           };
         });
         setStatus("ready");
@@ -300,18 +301,36 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
     setMessage("Session copied into a new entry.");
   }
 
-  function startNewSession() {
+  async function refreshTracksForSelection(preferredTrackId: string) {
+    const nextTracks = await fetchTracks(supabase, userId, { includeArchived: true });
+    setTracks(nextTracks);
+
+    const nextTrackOptions = selectableTracks(nextTracks);
+    return nextTrackOptions.some((track) => track.id === preferredTrackId)
+      ? preferredTrackId
+      : nextTrackOptions[0]?.id ?? "";
+  }
+
+  async function startNewSession() {
     setEditingSessionId("");
     setSessionFormNotice("");
-    setSessionForm({
-      ...emptySessionForm,
-      car_id: sessionForm.car_id,
-      engine_id: sessionForm.engine_id,
-      track_id: sessionForm.track_id,
-      driver: sessionForm.driver,
-    });
     setMessage("");
-    setIsSessionModalOpen(true);
+
+    try {
+      const trackId = await refreshTracksForSelection(sessionForm.track_id);
+      setSessionForm({
+        ...emptySessionForm,
+        car_id: sessionForm.car_id,
+        engine_id: sessionForm.engine_id,
+        track_id: trackId,
+        driver: sessionForm.driver,
+      });
+      setIsSessionModalOpen(true);
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Tracks could not be refreshed.",
+      );
+    }
   }
 
   function closeSessionModal() {
@@ -502,9 +521,9 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
                   onChange={(event) => updateField("track_id", event.target.value)}
                 >
                   <option value="">Choose track</option>
-                  {tracks.map((track) => (
+                  {trackOptions.map((track) => (
                     <option key={track.id} value={track.id}>
-                      {track.name}
+                      {trackOptionLabel(track)}
                     </option>
                   ))}
                 </select>
@@ -1332,6 +1351,28 @@ function searchableSessionText(
   ]
     .filter(Boolean)
     .join(" ");
+}
+
+function selectableTracks(tracks: TrackWithNotes[]) {
+  return tracks.filter(isSelectableTrack).sort(sortTracksByName);
+}
+
+function isSelectableTrack(track: TrackWithNotes) {
+  if (track.archived_at) return false;
+  return !track.is_system || track.is_favorite;
+}
+
+function defaultTrackId(tracks: TrackWithNotes[]) {
+  return selectableTracks(tracks)[0]?.id ?? "";
+}
+
+function sortTracksByName(a: TrackWithNotes, b: TrackWithNotes) {
+  return a.name.localeCompare(b.name);
+}
+
+function trackOptionLabel(track: TrackWithNotes) {
+  const location = [track.city, track.state].filter(Boolean).join(", ") || track.location;
+  return [track.name, location].filter(Boolean).join(" - ");
 }
 
 function formatSessionGear(

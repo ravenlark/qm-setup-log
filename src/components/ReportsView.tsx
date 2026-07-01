@@ -154,7 +154,7 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
     Promise.all([
       fetchCars(supabase),
       fetchEngines(supabase),
-      fetchTracks(supabase, userId),
+      fetchTracks(supabase, userId, { includeArchived: true }),
       fetchSessions(supabase),
     ])
       .then(([nextCars, nextEngines, nextTracks, nextSessions]) => {

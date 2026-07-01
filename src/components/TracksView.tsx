@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { MapPin, Pencil, Plus, Save, Trash2, X } from "lucide-react";
+import { ChevronDown, MapPin, Pencil, Plus, Save, Star, Trash2, X } from "lucide-react";
 import { fetchSessions, type SetupSession } from "../data/sessions";
 import {
   ACCOUNT_FEATURES,
@@ -10,18 +10,25 @@ import {
 } from "../data/subscriptions";
 import {
   createPrivateTrack,
-  deletePrivateTrack,
-  fetchTracks,
+  fetchTrackCatalog,
+  fetchUserTracks,
+  removePrivateTrack,
   saveTrackNotes,
+  setTrackFavorite,
   updatePrivateTrack,
   type TrackInput,
+  type TrackNotes,
   type TrackNotesInput,
   type TrackWithNotes,
 } from "../data/tracks";
 
 const emptyTrackForm: TrackInput = {
   name: "",
-  location: "",
+  street_address: "",
+  city: "",
+  state: "",
+  postal_code: "",
+  country: "US",
   surface: "",
   length: "",
   is_banked: false,
@@ -41,26 +48,37 @@ type TracksViewProps = {
   userId: string;
 };
 
-type TrackModal = "track" | "notes" | null;
-type TrackFilter = "all" | "private" | "system";
+type TrackModal = "add" | "track" | "notes" | null;
+type AddTrackTab = "catalog" | "custom";
+type CatalogStatus = "idle" | "loading" | "ready";
+type ViewStatus = "loading" | "ready" | "saving";
 type TrackStats = {
   lastSession: SetupSession | null;
   totalLaps: number;
   totalSessions: number;
 };
 
+type TrackGroup = {
+  title: string;
+  tracks: TrackWithNotes[];
+};
+
 export function TracksView({ supabase, userId }: TracksViewProps) {
   const [tracks, setTracks] = useState<TrackWithNotes[]>([]);
+  const [catalogTracks, setCatalogTracks] = useState<TrackWithNotes[]>([]);
   const [sessions, setSessions] = useState<SetupSession[]>([]);
   const [editingTrackId, setEditingTrackId] = useState("");
+  const [expandedTrackId, setExpandedTrackId] = useState("");
   const [notesTrackId, setNotesTrackId] = useState("");
   const [activeModal, setActiveModal] = useState<TrackModal>(null);
+  const [addTrackTab, setAddTrackTab] = useState<AddTrackTab>("catalog");
   const [trackForm, setTrackForm] = useState(emptyTrackForm);
   const [notesForm, setNotesForm] = useState(emptyNotesForm);
   const [trackSearch, setTrackSearch] = useState("");
-  const [trackFilter, setTrackFilter] = useState<TrackFilter>("all");
+  const [catalogSearch, setCatalogSearch] = useState("");
   const [accountLimits, setAccountLimits] = useState<AccountLimits | null>(null);
-  const [status, setStatus] = useState<"loading" | "ready" | "saving">("loading");
+  const [status, setStatus] = useState<ViewStatus>("loading");
+  const [catalogStatus, setCatalogStatus] = useState<CatalogStatus>("idle");
   const [message, setMessage] = useState("");
 
   const notesTrack = useMemo(
@@ -97,15 +115,21 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
   const visibleTracks = useMemo(() => {
     const search = trackSearch.trim().toLowerCase();
     return tracks.filter((track) => {
-      const matchesFilter =
-        trackFilter === "all" ||
-        (trackFilter === "system" && track.is_system) ||
-        (trackFilter === "private" && !track.is_system);
-      const matchesSearch =
-        !search || searchableTrackText(track).toLowerCase().includes(search);
-      return matchesFilter && matchesSearch;
+      return !search || searchableTrackText(track).toLowerCase().includes(search);
     });
-  }, [trackFilter, trackSearch, tracks]);
+  }, [trackSearch, tracks]);
+
+  const visibleCatalogTracks = useMemo(() => {
+    const search = catalogSearch.trim().toLowerCase();
+    return catalogTracks.filter((track) => {
+      return !search || searchableTrackText(track).toLowerCase().includes(search);
+    });
+  }, [catalogSearch, catalogTracks]);
+
+  const organizedTracks = useMemo(
+    () => organizeTracks(visibleTracks),
+    [visibleTracks],
+  );
 
   const canCreateCustomTracks = hasAccountFeature(
     accountLimits,
@@ -118,7 +142,7 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
     setMessage("");
 
     Promise.all([
-      fetchTracks(supabase, userId),
+      fetchUserTracks(supabase, userId),
       fetchSessions(supabase),
       fetchAccountLimits(supabase),
     ])
@@ -140,18 +164,32 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
     };
   }, [supabase, userId]);
 
-  function startTrackAdd() {
-    if (!canCreateCustomTracks) {
-      setMessage(featureMessage("custom tracks", accountLimits));
-      return;
-    }
+  async function loadCatalog() {
+    if (catalogStatus === "loading" || catalogStatus === "ready") return;
 
+    setCatalogStatus("loading");
+    try {
+      const nextCatalogTracks = await fetchTrackCatalog(supabase, userId);
+      setCatalogTracks(nextCatalogTracks);
+      setCatalogStatus("ready");
+    } catch (error) {
+      setCatalogStatus("ready");
+      setMessage(
+        error instanceof Error ? error.message : "Track catalog could not be loaded.",
+      );
+    }
+  }
+
+  function startTrackAdd() {
     setEditingTrackId("");
     setTrackForm(emptyTrackForm);
     setNotesTrackId("");
     setNotesForm(emptyNotesForm);
+    setCatalogSearch("");
+    setAddTrackTab("catalog");
     setMessage("");
-    setActiveModal("track");
+    setActiveModal("add");
+    void loadCatalog();
   }
 
   function startTrackEdit(track: TrackWithNotes) {
@@ -163,7 +201,11 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
     setEditingTrackId(track.id);
     setTrackForm({
       name: track.name,
-      location: track.location ?? "",
+      street_address: track.street_address ?? "",
+      city: track.city ?? "",
+      state: track.state ?? "",
+      postal_code: track.postal_code ?? "",
+      country: track.country ?? "US",
       surface: track.surface ?? "",
       length: track.length ?? "",
       is_banked: track.is_banked,
@@ -177,7 +219,9 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
     setTrackForm(emptyTrackForm);
     setNotesTrackId("");
     setNotesForm(emptyNotesForm);
-    setActiveModal((current) => (current === "track" ? null : current));
+    setActiveModal((current) =>
+      current === "track" || current === "add" ? null : current,
+    );
   }
 
   function startNotesEdit(track: TrackWithNotes) {
@@ -199,6 +243,10 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
       setMessage("Track name is required.");
       return;
     }
+    if (!trackForm.city.trim() || !trackForm.state.trim()) {
+      setMessage("City and state are required.");
+      return;
+    }
 
     setStatus("saving");
     setMessage("");
@@ -212,9 +260,14 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
         : await saveTrackNotes(supabase, userId, saved.id, notesForm);
       setTracks((current) => {
         const withoutSaved = current.filter((track) => track.id !== saved.id);
-        return [...withoutSaved, { ...saved, notesRecord: savedNotes }].sort(
-          sortTracks,
-        );
+        return [
+          ...withoutSaved,
+          {
+            ...saved,
+            is_favorite: savedNotes?.is_favorite ?? false,
+            notesRecord: savedNotes,
+          },
+        ].sort(sortTracksByName);
       });
       resetTrackForm();
       setMessage(editingTrackId ? "Track updated." : "Track added.");
@@ -240,11 +293,7 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
         notesTrack.id,
         notesForm,
       );
-      setTracks((current) =>
-        current.map((track) =>
-          track.id === notesTrack.id ? { ...track, notesRecord: savedNotes } : track,
-        ),
-      );
+      updateTrackNotes(savedNotes);
       resetNotesForm();
       setMessage("Track notes saved.");
     } catch (error) {
@@ -254,21 +303,43 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
     }
   }
 
+  async function handleToggleFavorite(track: TrackWithNotes) {
+    setStatus("saving");
+    setMessage("");
+    try {
+      const savedNotes = await setTrackFavorite(
+        supabase,
+        userId,
+        track.id,
+        !track.is_favorite,
+      );
+      updateTrackFavorite(track, savedNotes);
+      setMessage(savedNotes.is_favorite ? "Track added to favorites." : "Favorite removed.");
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Favorite could not be updated.",
+      );
+    } finally {
+      setStatus("ready");
+    }
+  }
+
   async function handleDeleteTrack(track: TrackWithNotes) {
     if (track.is_system) return;
     const confirmed = window.confirm(
-      `Remove "${track.name}" and its notes? This cannot be undone.`,
+      `Remove "${track.name}" from your tracks?`,
     );
     if (!confirmed) return;
 
     setStatus("saving");
     setMessage("");
     try {
-      await deletePrivateTrack(supabase, userId, track.id);
+      await removePrivateTrack(supabase, userId, track.id);
       setTracks((current) => current.filter((item) => item.id !== track.id));
       if (editingTrackId === track.id) resetTrackForm();
       if (notesTrackId === track.id) resetNotesForm();
-      setMessage("Track removed.");
+      if (expandedTrackId === track.id) setExpandedTrackId("");
+      setMessage("Track removed from your tracks.");
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Track could not be removed.",
@@ -276,6 +347,51 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
     } finally {
       setStatus("ready");
     }
+  }
+
+  function updateTrackNotes(savedNotes: TrackNotes) {
+    setTracks((current) =>
+      current.map((track) =>
+        track.id === savedNotes.track_id
+          ? {
+              ...track,
+              is_favorite: savedNotes.is_favorite,
+              notesRecord: mergeNotes(track.notesRecord, savedNotes),
+            }
+          : track,
+      ),
+    );
+    setCatalogTracks((current) =>
+      current.map((track) =>
+        track.id === savedNotes.track_id
+          ? {
+              ...track,
+              is_favorite: savedNotes.is_favorite,
+              notesRecord: mergeNotes(track.notesRecord, savedNotes),
+            }
+          : track,
+      ),
+    );
+  }
+
+  function updateTrackFavorite(track: TrackWithNotes, savedNotes: TrackNotes) {
+    const updatedTrack = {
+      ...track,
+      is_favorite: savedNotes.is_favorite,
+      notesRecord: mergeNotes(track.notesRecord, savedNotes),
+    };
+
+    setTracks((current) => {
+      const withoutTrack = current.filter((item) => item.id !== track.id);
+      if (updatedTrack.is_system && !updatedTrack.is_favorite) {
+        return withoutTrack;
+      }
+      return [...withoutTrack, updatedTrack].sort(sortTracksByName);
+    });
+
+    setCatalogTracks((current) =>
+      current.map((item) => (item.id === track.id ? updatedTrack : item)),
+    );
   }
 
   return (
@@ -290,7 +406,7 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
             <button
               aria-label="Add track"
               className="icon-button"
-              disabled={status === "saving" || !canCreateCustomTracks}
+              disabled={status === "saving"}
               type="button"
               onClick={startTrackAdd}
             >
@@ -299,203 +415,140 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
           </div>
         </div>
 
-        {accountLimits && !canCreateCustomTracks ? (
-          <div className="limit-notice">
-            {featureMessage("custom tracks", accountLimits)}
-          </div>
-        ) : null}
-
         <div className="track-list-controls">
           <input
             aria-label="Search tracks"
             type="search"
             value={trackSearch}
-            placeholder="Search tracks"
+            placeholder="Search your tracks"
             onChange={(event) => setTrackSearch(event.target.value)}
           />
-          <select
-            aria-label="Filter tracks"
-            value={trackFilter}
-            onChange={(event) => setTrackFilter(event.target.value as TrackFilter)}
-          >
-            <option value="all">All tracks</option>
-            <option value="private">My tracks</option>
-            <option value="system">System tracks</option>
-          </select>
         </div>
 
         {status === "loading" ? (
           <div className="empty-state">Loading tracks...</div>
         ) : visibleTracks.length ? (
-          <div className="track-card-grid">
-            {visibleTracks.map((track) => (
-              <TrackCard
-                key={track.id}
-                stats={trackStatsByTrackId.get(track.id)}
+          <div className="track-group-list">
+            {organizedTracks.map((group) => (
+              <TrackListSection
+                expandedTrackId={expandedTrackId}
+                key={group.title}
+                group={group}
                 status={status}
-                track={track}
+                statsByTrackId={trackStatsByTrackId}
                 onDelete={handleDeleteTrack}
                 onEdit={startTrackEdit}
                 onNotes={startNotesEdit}
+                onToggle={(track) =>
+                  setExpandedTrackId((current) =>
+                    current === track.id ? "" : track.id,
+                  )
+                }
+                onToggleFavorite={handleToggleFavorite}
               />
             ))}
           </div>
         ) : tracks.length ? (
           <div className="empty-state">No tracks match your search.</div>
         ) : (
-          <div className="empty-state">No tracks yet.</div>
+          <div className="empty-state">No favorite or custom tracks yet.</div>
         )}
       </div>
 
       {message ? <div className="inline-message garage-message">{message}</div> : null}
 
+      {activeModal === "add" ? (
+        <Modal
+          eyebrow="Add Track"
+          icon={<MapPin size={20} />}
+          title="Add Track"
+          onClose={resetTrackForm}
+        >
+          <div className="track-add-tabs" role="tablist" aria-label="Add track options">
+            <button
+              aria-selected={addTrackTab === "catalog"}
+              role="tab"
+              type="button"
+              onClick={() => {
+                setAddTrackTab("catalog");
+                void loadCatalog();
+              }}
+            >
+              Track Catalog
+            </button>
+            <button
+              aria-selected={addTrackTab === "custom"}
+              role="tab"
+              type="button"
+              onClick={() => setAddTrackTab("custom")}
+            >
+              Custom Track
+            </button>
+          </div>
+
+          {addTrackTab === "catalog" ? (
+            <div className="track-catalog-panel">
+              <input
+                aria-label="Search track catalog"
+                type="search"
+                value={catalogSearch}
+                placeholder="Search track catalog"
+                onChange={(event) => setCatalogSearch(event.target.value)}
+              />
+              {catalogStatus === "loading" ? (
+                <div className="empty-state">Loading catalog...</div>
+              ) : visibleCatalogTracks.length ? (
+                <div className="catalog-track-list">
+                  {visibleCatalogTracks.map((track) => (
+                    <CatalogTrackRow
+                      key={track.id}
+                      status={status}
+                      track={track}
+                      onToggleFavorite={handleToggleFavorite}
+                    />
+                  ))}
+                </div>
+              ) : catalogTracks.length ? (
+                <div className="empty-state">No catalog tracks match your search.</div>
+              ) : (
+                <div className="empty-state">No catalog tracks available.</div>
+              )}
+            </div>
+          ) : canCreateCustomTracks ? (
+            <form onSubmit={handleSaveTrack}>
+              <TrackFormFields trackForm={trackForm} setTrackForm={setTrackForm} />
+              <TrackNotesFields notesForm={notesForm} setNotesForm={setNotesForm} />
+              <div className="button-row">
+                <button className="secondary-button" type="button" onClick={resetTrackForm}>
+                  Cancel
+                </button>
+                <button
+                  className="primary-button"
+                  disabled={status === "saving"}
+                  type="submit"
+                >
+                  <Plus size={18} />
+                  Add Track
+                </button>
+              </div>
+            </form>
+          ) : (
+            <div className="limit-notice">
+              {featureMessage("custom tracks", accountLimits)}
+            </div>
+          )}
+        </Modal>
+      ) : null}
+
       {activeModal === "track" ? (
         <Modal
-          eyebrow={editingTrackId ? "Edit Track" : "Private Track"}
+          eyebrow="Edit Track"
           icon={<MapPin size={20} />}
-          title={editingTrackId ? trackForm.name || "Track" : "Add Track"}
+          title={trackForm.name || "Track"}
           onClose={resetTrackForm}
         >
           <form onSubmit={handleSaveTrack}>
-            <div className="form-grid">
-              <label>
-                Name
-                <input
-                  required
-                  value={trackForm.name}
-                  onChange={(event) =>
-                    setTrackForm({ ...trackForm, name: event.target.value })
-                  }
-                  placeholder="Blue Mountain"
-                />
-              </label>
-              <label>
-                Location
-                <input
-                  value={trackForm.location}
-                  onChange={(event) =>
-                    setTrackForm({ ...trackForm, location: event.target.value })
-                  }
-                  placeholder="City, State"
-                />
-              </label>
-              <label>
-                Surface
-                <input
-                  value={trackForm.surface}
-                  onChange={(event) =>
-                    setTrackForm({ ...trackForm, surface: event.target.value })
-                  }
-                  placeholder="Dirt, asphalt, concrete"
-                />
-              </label>
-              <label>
-                Length
-                <input
-                  value={trackForm.length}
-                  onChange={(event) =>
-                    setTrackForm({ ...trackForm, length: event.target.value })
-                  }
-                  placeholder="1/20 mile"
-                />
-              </label>
-            </div>
-            <div className="radio-field track-shape-field">
-              <span>Track Shape</span>
-              <div
-                aria-label="Track shape"
-                className="segmented-radio two-options"
-                role="radiogroup"
-              >
-                <label>
-                  <input
-                    checked={trackForm.is_banked}
-                    name="track_shape"
-                    type="radio"
-                    value="banked"
-                    onChange={() => setTrackForm({ ...trackForm, is_banked: true })}
-                  />
-                  <span>Banked Track</span>
-                </label>
-                <label>
-                  <input
-                    checked={!trackForm.is_banked}
-                    name="track_shape"
-                    type="radio"
-                    value="flat"
-                    onChange={() => setTrackForm({ ...trackForm, is_banked: false })}
-                  />
-                  <span>Flat Track</span>
-                </label>
-              </div>
-            </div>
-            {!editingTrackId ? (
-              <div className="form-grid notes-grid">
-                <label>
-                  Layout Notes
-                  <textarea
-                    value={notesForm.layout_notes}
-                    onChange={(event) =>
-                      setNotesForm({
-                        ...notesForm,
-                        layout_notes: event.target.value,
-                      })
-                    }
-                  />
-                </label>
-                <label>
-                  Racing Line Notes
-                  <textarea
-                    value={notesForm.line_notes}
-                    onChange={(event) =>
-                      setNotesForm({ ...notesForm, line_notes: event.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  Surface Evolution
-                  <textarea
-                    value={notesForm.surface_notes}
-                    onChange={(event) =>
-                      setNotesForm({
-                        ...notesForm,
-                        surface_notes: event.target.value,
-                      })
-                    }
-                  />
-                </label>
-                <label>
-                  Tire / Stagger Notes
-                  <textarea
-                    value={notesForm.tire_notes}
-                    onChange={(event) =>
-                      setNotesForm({ ...notesForm, tire_notes: event.target.value })
-                    }
-                  />
-                </label>
-                <label>
-                  Facility Notes
-                  <textarea
-                    value={notesForm.facility_notes}
-                    onChange={(event) =>
-                      setNotesForm({
-                        ...notesForm,
-                        facility_notes: event.target.value,
-                      })
-                    }
-                  />
-                </label>
-                <label>
-                  General Notes
-                  <textarea
-                    value={notesForm.notes}
-                    onChange={(event) =>
-                      setNotesForm({ ...notesForm, notes: event.target.value })
-                    }
-                  />
-                </label>
-              </div>
-            ) : null}
+            <TrackFormFields trackForm={trackForm} setTrackForm={setTrackForm} />
             <div className="button-row">
               <button className="secondary-button" type="button" onClick={resetTrackForm}>
                 Cancel
@@ -505,8 +558,8 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
                 disabled={status === "saving"}
                 type="submit"
               >
-                {editingTrackId ? <Save size={18} /> : <Plus size={18} />}
-                {editingTrackId ? "Save Track" : "Add Track"}
+                <Save size={18} />
+                Save Track
               </button>
             </div>
           </form>
@@ -521,71 +574,7 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
           onClose={resetNotesForm}
         >
           <form onSubmit={handleSaveNotes}>
-            <div className="form-grid notes-grid">
-              <label>
-                Layout Notes
-                <textarea
-                  value={notesForm.layout_notes}
-                  onChange={(event) =>
-                    setNotesForm({
-                      ...notesForm,
-                      layout_notes: event.target.value,
-                    })
-                  }
-                />
-              </label>
-              <label>
-                Racing Line Notes
-                <textarea
-                  value={notesForm.line_notes}
-                  onChange={(event) =>
-                    setNotesForm({ ...notesForm, line_notes: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Surface Evolution
-                <textarea
-                  value={notesForm.surface_notes}
-                  onChange={(event) =>
-                    setNotesForm({
-                      ...notesForm,
-                      surface_notes: event.target.value,
-                    })
-                  }
-                />
-              </label>
-              <label>
-                Tire / Stagger Notes
-                <textarea
-                  value={notesForm.tire_notes}
-                  onChange={(event) =>
-                    setNotesForm({ ...notesForm, tire_notes: event.target.value })
-                  }
-                />
-              </label>
-              <label>
-                Facility Notes
-                <textarea
-                  value={notesForm.facility_notes}
-                  onChange={(event) =>
-                    setNotesForm({
-                      ...notesForm,
-                      facility_notes: event.target.value,
-                    })
-                  }
-                />
-              </label>
-              <label>
-                General Notes
-                <textarea
-                  value={notesForm.notes}
-                  onChange={(event) =>
-                    setNotesForm({ ...notesForm, notes: event.target.value })
-                  }
-                />
-              </label>
-            </div>
+            <TrackNotesFields notesForm={notesForm} setNotesForm={setNotesForm} />
             <div className="button-row">
               <button className="secondary-button" type="button" onClick={resetNotesForm}>
                 Cancel
@@ -606,104 +595,424 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
   );
 }
 
-function TrackCard({
+function TrackListSection({
+  expandedTrackId,
+  group,
   onDelete,
   onEdit,
   onNotes,
+  onToggle,
+  onToggleFavorite,
+  statsByTrackId,
+  status,
+}: {
+  expandedTrackId: string;
+  group: TrackGroup;
+  onDelete: (track: TrackWithNotes) => void;
+  onEdit: (track: TrackWithNotes) => void;
+  onNotes: (track: TrackWithNotes) => void;
+  onToggle: (track: TrackWithNotes) => void;
+  onToggleFavorite: (track: TrackWithNotes) => void;
+  statsByTrackId: Map<string, TrackStats>;
+  status: ViewStatus;
+}) {
+  return (
+    <section className="track-group">
+      <div className="track-group-header">
+        <h3>{group.title}</h3>
+        <span>{group.tracks.length}</span>
+      </div>
+      <div className="track-row-list">
+        {group.tracks.map((track) => (
+          <TrackRow
+            expanded={expandedTrackId === track.id}
+            key={track.id}
+            stats={statsByTrackId.get(track.id)}
+            status={status}
+            track={track}
+            onDelete={onDelete}
+            onEdit={onEdit}
+            onNotes={onNotes}
+            onToggle={onToggle}
+            onToggleFavorite={onToggleFavorite}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function TrackRow({
+  expanded,
+  onDelete,
+  onEdit,
+  onNotes,
+  onToggle,
+  onToggleFavorite,
   stats,
   status,
   track,
 }: {
+  expanded: boolean;
   onDelete: (track: TrackWithNotes) => void;
   onEdit: (track: TrackWithNotes) => void;
   onNotes: (track: TrackWithNotes) => void;
+  onToggle: (track: TrackWithNotes) => void;
+  onToggleFavorite: (track: TrackWithNotes) => void;
   stats: TrackStats | undefined;
-  status: "loading" | "ready" | "saving";
+  status: ViewStatus;
   track: TrackWithNotes;
 }) {
-  const notes = track.notesRecord;
-  const noteLines = [
-    { label: "Layout", value: notes?.layout_notes },
-    { label: "Line", value: notes?.line_notes },
-    { label: "Surface", value: notes?.surface_notes },
-    { label: "Tires/Stagger", value: notes?.tire_notes },
-    { label: "Facility", value: notes?.facility_notes },
-    { label: "Notes", value: notes?.notes },
-  ].filter((note) => Boolean(note.value?.trim()));
+  const noteLines = trackNoteLines(track);
 
   return (
     <article
-      className={`garage-card track-card ${
-        track.is_system ? "track-card-system" : "track-card-user"
-      }`}
+      className={[
+        "track-compact-row",
+        track.is_system ? "track-card-system" : "track-card-user",
+        track.is_favorite ? "track-compact-row-favorite" : "",
+      ]
+        .filter(Boolean)
+        .join(" ")}
     >
-      <div className="garage-card-heading">
-        <div>
-          <h3>{track.name}</h3>
-          <p>{trackSummary(track)}</p>
-        </div>
-        {!track.is_system ? (
-            <span className="garage-kind">Your Track</span>
-          ) : null}
-      </div>
-
-      <div className="garage-stat-grid track-stat-grid">
-        <TrackStat label="Total Sessions" value={String(stats?.totalSessions ?? 0)} />
-        <TrackStat
-          label="Last Session"
-          value={stats?.lastSession ? formatShortDate(stats.lastSession) : "--"}
-        />
-        <TrackStat label="Total Laps" value={String(stats?.totalLaps ?? 0)} />
-      </div>
-
-      {noteLines.length ? (
-        <div className="track-card-notes">
-          {noteLines.map((note) => (
-            <NoteLine key={note.label} label={note.label} value={note.value} />
-          ))}
-        </div>
-      ) : null}
-
-      <div className="garage-card-actions">
-        {!track.is_system ? (
-          <button
-            aria-label={`Edit ${track.name}`}
-            className="icon-button"
-            disabled={status === "saving"}
-            type="button"
-            onClick={() => onEdit(track)}
-          >
-            <Pencil size={18} />
-          </button>
-        ) : null}
+      <div className="track-compact-summary">
         <button
-          aria-label={`Edit notes for ${track.name}`}
-          className="secondary-button"
+          aria-label={
+            track.is_favorite
+              ? `Remove ${track.name} from favorites`
+              : `Add ${track.name} to favorites`
+          }
+          className={`icon-button favorite-button ${
+            track.is_favorite ? "favorite-button-active" : ""
+          }`}
           disabled={status === "saving"}
           type="button"
-          onClick={() => onNotes(track)}
+          onClick={() => onToggleFavorite(track)}
         >
-          Notes
+          <Star size={18} fill={track.is_favorite ? "currentColor" : "none"} />
         </button>
-        {!track.is_system ? (
-          <button
-            aria-label={`Remove ${track.name}`}
-            className="danger-icon-button"
-            disabled={status === "saving"}
-            type="button"
-            onClick={() => onDelete(track)}
-          >
-            <Trash2 size={18} />
-          </button>
-        ) : null}
+        <button
+          aria-expanded={expanded}
+          className="track-compact-toggle"
+          type="button"
+          onClick={() => onToggle(track)}
+        >
+          <span className="track-compact-title">
+            <strong>{track.name}</strong>
+            <span>{trackSummary(track)}</span>
+          </span>
+          <span className="track-compact-pills">
+            {!track.is_system ? <span className="garage-kind">My Track</span> : null}
+            {track.surface ? <span className="session-pill">{track.surface}</span> : null}
+            {track.length ? <span className="session-pill">{track.length}</span> : null}
+            <span className="session-pill">{track.is_banked ? "Banked" : "Flat"}</span>
+          </span>
+          <span className="track-compact-stats">
+            <span>{stats?.totalSessions ?? 0} sessions</span>
+            <span>{stats?.lastSession ? formatShortDate(stats.lastSession) : "No sessions"}</span>
+          </span>
+          <ChevronDown size={18} />
+        </button>
       </div>
+
+      {expanded ? (
+        <div className="track-compact-detail">
+          <div className="session-history-stats">
+            <TrackStat label="Total Sessions" value={String(stats?.totalSessions ?? 0)} />
+            <TrackStat
+              label="Last Session"
+              value={stats?.lastSession ? formatShortDate(stats.lastSession) : "--"}
+            />
+            <TrackStat label="Total Laps" value={String(stats?.totalLaps ?? 0)} />
+          </div>
+
+          {formatFullAddress(track) ? (
+            <p className="track-address-line">{formatFullAddress(track)}</p>
+          ) : null}
+
+          {noteLines.length ? (
+            <div className="track-card-notes">
+              {noteLines.map((note) => (
+                <NoteLine key={note.label} label={note.label} value={note.value} />
+              ))}
+            </div>
+          ) : (
+            <div className="empty-state compact-empty-state">No track notes yet.</div>
+          )}
+
+          <div className="garage-card-actions">
+            {!track.is_system ? (
+              <button
+                aria-label={`Edit ${track.name}`}
+                className="icon-button"
+                disabled={status === "saving"}
+                type="button"
+                onClick={() => onEdit(track)}
+              >
+                <Pencil size={18} />
+              </button>
+            ) : null}
+            <button
+              aria-label={`Edit notes for ${track.name}`}
+              className="secondary-button"
+              disabled={status === "saving"}
+              type="button"
+              onClick={() => onNotes(track)}
+            >
+              Notes
+            </button>
+            {!track.is_system ? (
+              <button
+                aria-label={`Remove ${track.name}`}
+                className="danger-icon-button"
+                disabled={status === "saving"}
+                type="button"
+                onClick={() => onDelete(track)}
+              >
+                <Trash2 size={18} />
+              </button>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </article>
+  );
+}
+
+function CatalogTrackRow({
+  onToggleFavorite,
+  status,
+  track,
+}: {
+  onToggleFavorite: (track: TrackWithNotes) => void;
+  status: ViewStatus;
+  track: TrackWithNotes;
+}) {
+  return (
+    <article className="catalog-track-row">
+      <div>
+        <strong>{track.name}</strong>
+        <span>{trackSummary(track)}</span>
+      </div>
+      <button
+        aria-label={
+          track.is_favorite
+            ? `Remove ${track.name} from favorites`
+            : `Add ${track.name} to favorites`
+        }
+        className={`icon-button favorite-button ${
+          track.is_favorite ? "favorite-button-active" : ""
+        }`}
+        disabled={status === "saving"}
+        type="button"
+        onClick={() => onToggleFavorite(track)}
+      >
+        <Star size={18} fill={track.is_favorite ? "currentColor" : "none"} />
+      </button>
+    </article>
+  );
+}
+
+function TrackFormFields({
+  setTrackForm,
+  trackForm,
+}: {
+  setTrackForm: (track: TrackInput) => void;
+  trackForm: TrackInput;
+}) {
+  return (
+    <>
+      <div className="form-grid">
+        <label>
+          Name
+          <input
+            required
+            value={trackForm.name}
+            onChange={(event) =>
+              setTrackForm({ ...trackForm, name: event.target.value })
+            }
+            placeholder="Blue Mountain"
+          />
+        </label>
+        <label>
+          Street Address
+          <input
+            value={trackForm.street_address}
+            onChange={(event) =>
+              setTrackForm({
+                ...trackForm,
+                street_address: event.target.value,
+              })
+            }
+            placeholder="123 Raceway Rd"
+          />
+        </label>
+        <label>
+          City
+          <input
+            required
+            value={trackForm.city}
+            onChange={(event) =>
+              setTrackForm({ ...trackForm, city: event.target.value })
+            }
+            placeholder="Graham"
+          />
+        </label>
+        <label>
+          State
+          <input
+            required
+            value={trackForm.state}
+            onChange={(event) =>
+              setTrackForm({ ...trackForm, state: event.target.value })
+            }
+            placeholder="WA"
+          />
+        </label>
+        <label>
+          Postal Code
+          <input
+            value={trackForm.postal_code}
+            onChange={(event) =>
+              setTrackForm({ ...trackForm, postal_code: event.target.value })
+            }
+            placeholder="98338"
+          />
+        </label>
+        <label>
+          Country
+          <input
+            value={trackForm.country}
+            onChange={(event) =>
+              setTrackForm({ ...trackForm, country: event.target.value })
+            }
+            placeholder="US"
+          />
+        </label>
+        <label>
+          Surface
+          <input
+            value={trackForm.surface}
+            onChange={(event) =>
+              setTrackForm({ ...trackForm, surface: event.target.value })
+            }
+            placeholder="Dirt, asphalt, concrete"
+          />
+        </label>
+        <label>
+          Length
+          <input
+            value={trackForm.length}
+            onChange={(event) =>
+              setTrackForm({ ...trackForm, length: event.target.value })
+            }
+            placeholder="1/20 mile"
+          />
+        </label>
+      </div>
+      <div className="radio-field track-shape-field">
+        <span>Track Shape</span>
+        <div
+          aria-label="Track shape"
+          className="segmented-radio two-options"
+          role="radiogroup"
+        >
+          <label>
+            <input
+              checked={trackForm.is_banked}
+              name="track_shape"
+              type="radio"
+              value="banked"
+              onChange={() => setTrackForm({ ...trackForm, is_banked: true })}
+            />
+            <span>Banked Track</span>
+          </label>
+          <label>
+            <input
+              checked={!trackForm.is_banked}
+              name="track_shape"
+              type="radio"
+              value="flat"
+              onChange={() => setTrackForm({ ...trackForm, is_banked: false })}
+            />
+            <span>Flat Track</span>
+          </label>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function TrackNotesFields({
+  notesForm,
+  setNotesForm,
+}: {
+  notesForm: TrackNotesInput;
+  setNotesForm: (notes: TrackNotesInput) => void;
+}) {
+  return (
+    <div className="form-grid notes-grid">
+      <label>
+        Layout Notes
+        <textarea
+          value={notesForm.layout_notes}
+          onChange={(event) =>
+            setNotesForm({ ...notesForm, layout_notes: event.target.value })
+          }
+        />
+      </label>
+      <label>
+        Racing Line Notes
+        <textarea
+          value={notesForm.line_notes}
+          onChange={(event) =>
+            setNotesForm({ ...notesForm, line_notes: event.target.value })
+          }
+        />
+      </label>
+      <label>
+        Surface Evolution
+        <textarea
+          value={notesForm.surface_notes}
+          onChange={(event) =>
+            setNotesForm({ ...notesForm, surface_notes: event.target.value })
+          }
+        />
+      </label>
+      <label>
+        Tire / Stagger Notes
+        <textarea
+          value={notesForm.tire_notes}
+          onChange={(event) =>
+            setNotesForm({ ...notesForm, tire_notes: event.target.value })
+          }
+        />
+      </label>
+      <label>
+        Facility Notes
+        <textarea
+          value={notesForm.facility_notes}
+          onChange={(event) =>
+            setNotesForm({ ...notesForm, facility_notes: event.target.value })
+          }
+        />
+      </label>
+      <label>
+        General Notes
+        <textarea
+          value={notesForm.notes}
+          onChange={(event) =>
+            setNotesForm({ ...notesForm, notes: event.target.value })
+          }
+        />
+      </label>
+    </div>
   );
 }
 
 function TrackStat({ label, value }: { label: string; value: string }) {
   return (
-    <div className="garage-stat">
+    <div className="session-mini-stat">
       <span>{label}</span>
       <strong>{value}</strong>
     </div>
@@ -762,8 +1071,20 @@ function Modal({
   );
 }
 
-function sortTracks(a: TrackWithNotes, b: TrackWithNotes) {
-  return Number(b.is_system) - Number(a.is_system) || a.name.localeCompare(b.name);
+function organizeTracks(tracks: TrackWithNotes[]): TrackGroup[] {
+  const favorites = tracks.filter((track) => track.is_favorite).sort(sortTracksByName);
+  const myTracks = tracks
+    .filter((track) => !track.is_favorite && !track.is_system)
+    .sort(sortTracksByName);
+
+  return [
+    favorites.length ? { title: "Favorites", tracks: favorites } : null,
+    myTracks.length ? { title: "My Tracks", tracks: myTracks } : null,
+  ].filter((group): group is TrackGroup => Boolean(group));
+}
+
+function sortTracksByName(a: TrackWithNotes, b: TrackWithNotes) {
+  return a.name.localeCompare(b.name);
 }
 
 function notesInputFromTrack(track: TrackWithNotes): TrackNotesInput {
@@ -778,15 +1099,41 @@ function notesInputFromTrack(track: TrackWithNotes): TrackNotesInput {
   };
 }
 
-function trackSummary(track: TrackWithNotes) {
+function mergeNotes(current: TrackNotes | null, saved: TrackNotes): TrackNotes {
+  return {
+    ...(current ?? saved),
+    ...saved,
+  };
+}
+
+function trackNoteLines(track: TrackWithNotes) {
+  const notes = track.notesRecord;
   return [
-    track.location,
-    track.surface,
-    track.length,
-    track.is_banked ? "Banked" : "Flat",
+    { label: "Layout", value: notes?.layout_notes },
+    { label: "Line", value: notes?.line_notes },
+    { label: "Surface", value: notes?.surface_notes },
+    { label: "Tires/Stagger", value: notes?.tire_notes },
+    { label: "Facility", value: notes?.facility_notes },
+    { label: "Notes", value: notes?.notes },
+  ].filter((note) => Boolean(note.value?.trim()));
+}
+
+function trackSummary(track: TrackWithNotes) {
+  return [formatCityState(track), track.country].filter(Boolean).join(" - ");
+}
+
+function formatCityState(track: TrackWithNotes) {
+  return [track.city, track.state].filter(Boolean).join(", ") || track.location;
+}
+
+function formatFullAddress(track: TrackWithNotes) {
+  const cityLine = [
+    track.city,
+    [track.state, track.postal_code].filter(Boolean).join(" "),
   ]
     .filter(Boolean)
-    .join(" - ");
+    .join(", ");
+  return [track.street_address, cityLine, track.country].filter(Boolean).join(" - ");
 }
 
 function sessionTimestamp(session: SetupSession) {
@@ -812,9 +1159,15 @@ function searchableTrackText(track: TrackWithNotes) {
   return [
     track.name,
     track.location,
+    track.street_address,
+    track.city,
+    track.state,
+    track.postal_code,
+    track.country,
     track.surface,
     track.length,
     track.is_banked ? "banked" : "flat",
+    track.is_favorite ? "favorite favorites" : "",
     track.is_system ? "system track" : "my track your track private track",
     notes?.layout_notes,
     notes?.line_notes,
