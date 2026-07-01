@@ -405,12 +405,13 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
             <span className="count-pill">{tracks.length}</span>
             <button
               aria-label="Add track"
-              className="icon-button"
+              className="primary-button"
               disabled={status === "saving"}
               type="button"
               onClick={startTrackAdd}
             >
               <Plus size={18} />
+              Add a Track
             </button>
           </div>
         </div>
