@@ -11,6 +11,7 @@ export type Track = {
   country: string | null;
   surface: string | null;
   length: string | null;
+  track_type_id: string | null;
   is_banked: boolean;
   is_system: boolean;
   created_by: string | null;
@@ -44,7 +45,13 @@ export type TrackInput = {
   country: string;
   surface: string;
   length: string;
+  track_type_id: string;
   is_banked: boolean;
+};
+
+export type TrackType = {
+  id: string;
+  name: string;
 };
 
 export type TrackNotesInput = {
@@ -57,7 +64,7 @@ export type TrackNotesInput = {
 };
 
 const trackSelect =
-  "id, name, location, street_address, city, state, postal_code, country, surface, length, is_banked, is_system, created_by, archived_at";
+  "id, name, location, street_address, city, state, postal_code, country, surface, length, track_type_id, is_banked, is_system, created_by, archived_at";
 
 const notesSelect =
   "id, user_id, track_id, layout_notes, line_notes, surface_notes, tire_notes, facility_notes, notes, is_favorite";
@@ -118,6 +125,18 @@ export async function fetchTrackCatalog(
   return tracks.filter((track) => track.is_system).sort(sortTracksByName);
 }
 
+export async function fetchTrackTypes(
+  supabase: SupabaseClient,
+): Promise<TrackType[]> {
+  const { data, error } = await supabase
+    .from("track_types")
+    .select("id, name")
+    .order("name", { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []) as TrackType[];
+}
+
 export async function createPrivateTrack(
   supabase: SupabaseClient,
   userId: string,
@@ -135,6 +154,7 @@ export async function createPrivateTrack(
       country: cleanOptional(input.country) ?? "US",
       surface: cleanOptional(input.surface),
       length: cleanOptional(input.length),
+      track_type_id: cleanOptional(input.track_type_id),
       is_banked: input.is_banked,
       is_system: false,
       created_by: userId,
@@ -164,6 +184,7 @@ export async function updatePrivateTrack(
       country: cleanOptional(input.country) ?? "US",
       surface: cleanOptional(input.surface),
       length: cleanOptional(input.length),
+      track_type_id: cleanOptional(input.track_type_id),
       is_banked: input.is_banked,
     })
     .eq("id", trackId)

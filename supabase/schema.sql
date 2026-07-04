@@ -63,6 +63,12 @@ create table public.maintenance_types (
   updated_at timestamptz not null default now()
 );
 
+create table public.track_types (
+  id uuid primary key default gen_random_uuid(),
+  name text not null unique,
+  created_at timestamptz not null default now()
+);
+
 create table public.tracks (
   id uuid primary key default gen_random_uuid(),
   name text not null,
@@ -74,6 +80,7 @@ create table public.tracks (
   country text not null default 'US',
   surface text,
   length text,
+  track_type_id uuid references public.track_types(id) on delete set null,
   is_banked boolean not null default false,
   is_system boolean not null default false,
   created_by uuid references auth.users(id) on delete set null,
@@ -261,6 +268,9 @@ create unique index sessions_one_baseline_per_car_track
 create index tracks_system_idx
   on public.tracks (is_system);
 
+create index tracks_track_type_id_idx
+  on public.tracks (track_type_id);
+
 create index account_subscriptions_plan_idx
   on public.account_subscriptions (plan_id);
 
@@ -357,6 +367,7 @@ alter table public.subscription_plans enable row level security;
 alter table public.account_subscriptions enable row level security;
 alter table public.engine_types enable row level security;
 alter table public.maintenance_types enable row level security;
+alter table public.track_types enable row level security;
 alter table public.tracks enable row level security;
 alter table public.track_notes enable row level security;
 alter table public.cars enable row level security;
@@ -372,6 +383,7 @@ grant select on public.subscription_plans to authenticated;
 grant select on public.account_subscriptions to authenticated;
 grant select on public.engine_types to authenticated;
 grant select on public.maintenance_types to authenticated;
+grant select on public.track_types to authenticated;
 grant select, insert, update, delete on public.tracks to authenticated;
 grant select, insert, update, delete on public.track_notes to authenticated;
 grant select, insert, update, delete on public.cars to authenticated;
@@ -415,6 +427,11 @@ create policy "Authenticated users can read active maintenance types"
   on public.maintenance_types for select
   to authenticated
   using (is_active);
+
+create policy "Authenticated users can read track types"
+  on public.track_types for select
+  to authenticated
+  using (true);
 
 create policy "Users can read visible tracks"
   on public.tracks for select

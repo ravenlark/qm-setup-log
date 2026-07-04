@@ -31,6 +31,7 @@ const emptyTrackForm: TrackInput = {
   country: "US",
   surface: "",
   length: "",
+  track_type_id: "",
   is_banked: false,
 };
 
@@ -208,6 +209,7 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
       country: track.country ?? "US",
       surface: track.surface ?? "",
       length: track.length ?? "",
+      track_type_id: track.track_type_id ?? "",
       is_banked: track.is_banked,
     });
     setMessage("");
