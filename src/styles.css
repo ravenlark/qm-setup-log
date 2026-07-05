@@ -665,6 +665,7 @@ summary:focus-visible {
 .session-history-filters,
 .detail-grid,
 .subscription-card {
+  align-items: start;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -1814,6 +1815,7 @@ textarea:hover {
 
 .corner-box {
   display: grid;
+  align-content: start;
   gap: var(--space-3);
   min-width: 0;
   padding: var(--space-4);

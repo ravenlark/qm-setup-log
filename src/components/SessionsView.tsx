@@ -11,17 +11,23 @@ import {
   createSession,
   deleteSession,
   fetchSessions,
+  sessionPayloadValue,
+  sessionValueForInput,
   type SetupSession,
   type SetupSessionInput,
   type SetupSessionInputField,
   toggleSessionBaseline,
   updateSession,
 } from "../data/sessions";
+import {
+  setupFieldsForCarType,
+  setupSectionsForCarType,
+  type SetupFieldDefinition,
+  type SetupSectionDefinition,
+} from "../data/setupFields/index";
 import { fetchTracks, type TrackWithNotes } from "../data/tracks";
 
 const sessionTypes = ["Practice", "Qualifying", "Heat", "Main"];
-const lrHubOptions = ["Locked", "Unlocked", "Ratchet"];
-const corners = ["lf", "rf", "lr", "rr"] as const;
 
 const emptySessionForm: SetupSessionInput = {
   car_id: "",
@@ -130,6 +136,19 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
     [tracks],
   );
   const trackOptions = useMemo(() => selectableTracks(tracks), [tracks]);
+  const selectedCar = carById.get(sessionForm.car_id);
+  const setupFieldDefinitions = useMemo(
+    () => setupFieldsForCarType(selectedCar?.carType?.slug),
+    [selectedCar?.carType?.slug],
+  );
+  const setupFieldByKey = useMemo(
+    () => new Map(setupFieldDefinitions.map((field) => [field.key, field])),
+    [setupFieldDefinitions],
+  );
+  const setupSections = useMemo(
+    () => setupSectionsForCarType(selectedCar?.carType?.slug),
+    [selectedCar?.carType?.slug],
+  );
 
   const weightStats = useMemo(() => calculateWeightStats(sessionForm), [
     sessionForm,
@@ -258,8 +277,19 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
     setMessage("");
     try {
       const saved = editingSessionId
-        ? await updateSession(supabase, userId, editingSessionId, sessionForm)
-        : await createSession(supabase, userId, sessionForm);
+        ? await updateSession(
+            supabase,
+            userId,
+            editingSessionId,
+            sessionForm,
+            selectedCar?.carType?.slug,
+          )
+        : await createSession(
+            supabase,
+            userId,
+            sessionForm,
+            selectedCar?.carType?.slug,
+          );
       setSessions((current) =>
         [saved, ...current.filter((session) => session.id !== saved.id)].sort(
           sortSessions,
@@ -301,14 +331,29 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
     setMessage("Session copied into a new entry.");
   }
 
-  async function refreshTracksForSelection(preferredTrackId: string) {
-    const nextTracks = await fetchTracks(supabase, userId, { includeArchived: true });
+  async function refreshSessionOptions(preferredTrackId: string) {
+    const [nextCars, nextAssignments, nextTracks] = await Promise.all([
+      fetchCars(supabase),
+      fetchActiveEngineAssignments(supabase),
+      fetchTracks(supabase, userId, { includeArchived: true }),
+    ]);
+    setCars(nextCars);
+    setAssignments(nextAssignments);
     setTracks(nextTracks);
 
     const nextTrackOptions = selectableTracks(nextTracks);
-    return nextTrackOptions.some((track) => track.id === preferredTrackId)
+    const trackId = nextTrackOptions.some((track) => track.id === preferredTrackId)
       ? preferredTrackId
       : nextTrackOptions[0]?.id ?? "";
+    const carId =
+      nextCars.some((car) => car.id === sessionForm.car_id)
+        ? sessionForm.car_id
+        : nextCars[0]?.id ?? "";
+    const engineId =
+      nextAssignments.find((assignment) => assignment.car_id === carId)?.engine_id ||
+      "";
+
+    return { carId, engineId, trackId };
   }
 
   async function startNewSession() {
@@ -317,18 +362,22 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
     setMessage("");
 
     try {
-      const trackId = await refreshTracksForSelection(sessionForm.track_id);
+      const { carId, engineId, trackId } = await refreshSessionOptions(
+        sessionForm.track_id,
+      );
       setSessionForm({
         ...emptySessionForm,
-        car_id: sessionForm.car_id,
-        engine_id: sessionForm.engine_id,
+        car_id: carId,
+        engine_id: engineId,
         track_id: trackId,
         driver: sessionForm.driver,
       });
       setIsSessionModalOpen(true);
     } catch (error) {
       setMessage(
-        error instanceof Error ? error.message : "Tracks could not be refreshed.",
+        error instanceof Error
+          ? error.message
+          : "Session options could not be refreshed.",
       );
     }
   }
@@ -641,306 +690,15 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
             </div>
           </fieldset>
 
-          <fieldset className="session-card">
-            <legend>Tires & Suspension</legend>
-            <div className="radio-field">
-              <span>LR Hub</span>
-              <div className="segmented-radio" role="radiogroup" aria-label="LR Hub">
-                {lrHubOptions.map((option) => (
-                  <label key={option}>
-                    <input
-                      checked={sessionForm.lr_hub === option}
-                      name="lr_hub"
-                      type="radio"
-                      value={option}
-                      onChange={(event) =>
-                        updateField("lr_hub", event.target.value)
-                      }
-                    />
-                    <span>{option}</span>
-                  </label>
-                ))}
-              </div>
-            </div>
-            <div className="corner-grid tire-corner-grid">
-              {corners.map((corner) => (
-                <div className="corner-box" key={corner}>
-                  <h3>{corner.toUpperCase()}</h3>
-                  <NumberField
-                    label="PSI"
-                    value={sessionForm[`${corner}_psi`]}
-                    onChange={(value) => updateField(`${corner}_psi`, value)}
-                    min="0"
-                    step="0.1"
-                  />
-                  <TextField
-                    label="Tire Compound"
-                    value={sessionForm[`${corner}_tire_compound`]}
-                    onChange={(value) =>
-                      updateField(`${corner}_tire_compound`, value)
-                    }
-                  />
-                  <NumberField
-                    label="Offset (in)"
-                    value={sessionForm[`${corner}_offset`]}
-                    onChange={(value) => updateField(`${corner}_offset`, value)}
-                    min="0"
-                    step="0.01"
-                  />
-                  <NumberField
-                    label="Spring Rate"
-                    value={sessionForm[`${corner}_spring_rate`]}
-                    onChange={(value) =>
-                      updateField(`${corner}_spring_rate`, value)
-                    }
-                    min="0"
-                    step="1"
-                  />
-                  <TextField
-                    label="Shock Valving"
-                    value={sessionForm[`${corner}_shock_valving`]}
-                    onChange={(value) =>
-                      updateField(`${corner}_shock_valving`, value)
-                    }
-                    placeholder="3 / 5"
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="form-grid result-pair-grid">
-              <NumberField
-                label="Stagger (in)"
-                value={sessionForm.stagger}
-                onChange={(value) => updateField("stagger", value)}
-                min="0"
-                step="0.001"
-                placeholder="1.750"
-              />
-              <TextField
-                label="Tire Notes"
-                value={sessionForm.tire_notes}
-                onChange={(value) => updateField("tire_notes", value)}
-                placeholder="Prep, age, wear, pressure timing"
-              />
-            </div>
-          </fieldset>
-
-          <fieldset className="session-card">
-            <legend>Chassis</legend>
-            <div className="corner-grid weight-corner-grid">
-              {corners.map((corner) => (
-                <NumberField
-                  key={`${corner}_weight`}
-                  label={`${corner.toUpperCase()} Weight (lb)`}
-                  value={sessionForm[`${corner}_weight`]}
-                  onChange={(value) => updateField(`${corner}_weight`, value)}
-                  min="0"
-                  step="0.1"
-                />
-              ))}
-            </div>
-            <div className="calculated-grid weight-percent-grid">
-              <CalcStat label="Front" value={weightStats.front} />
-              <CalcStat label="Left" value={weightStats.left} />
-              <CalcStat label="Right" value={weightStats.right} />
-              <CalcStat label="Rear" value={weightStats.rear} />
-              <CalcStat label="Cross" value={weightStats.cross} />
-            </div>
-            <hr className="section-rule" />
-            <div className="corner-grid setup-corner-grid">
-              {corners.map((corner) => (
-                <NumberField
-                  key={`${corner}_ride_height`}
-                  label={`${corner.toUpperCase()} Ride Height (in)`}
-                  value={sessionForm[`${corner}_ride_height`]}
-                  onChange={(value) =>
-                    updateField(`${corner}_ride_height`, value)
-                  }
-                  min="0"
-                  step="0.01"
-                />
-              ))}
-            </div>
-            <hr className="section-rule" />
-            <div className="corner-grid setup-corner-grid">
-              <NumberField
-                label="LF Camber (deg)"
-                value={sessionForm.lf_camber}
-                onChange={(value) => updateField("lf_camber", value)}
-                step="0.1"
-              />
-              <NumberField
-                label="RF Camber (deg)"
-                value={sessionForm.rf_camber}
-                onChange={(value) => updateField("rf_camber", value)}
-                step="0.1"
-              />
-              <NumberField
-                label="LF Caster (deg)"
-                value={sessionForm.lf_caster}
-                onChange={(value) => updateField("lf_caster", value)}
-                step="0.1"
-              />
-              <NumberField
-                label="RF Caster (deg)"
-                value={sessionForm.rf_caster}
-                onChange={(value) => updateField("rf_caster", value)}
-                step="0.1"
-              />
-            </div>
-            <hr className="section-rule" />
-            <div className="corner-grid setup-corner-grid">
-              {corners.map((corner) => (
-                <NumberField
-                  key={`${corner}_panhard_holes`}
-                  label={`${corner.toUpperCase()} Panhard (holes down)`}
-                  value={sessionForm[`${corner}_panhard_holes`]}
-                  onChange={(value) =>
-                    updateField(`${corner}_panhard_holes`, value)
-                  }
-                  min="0"
-                  step="1"
-                />
-              ))}
-            </div>
-            <hr className="section-rule" />
-            <div className="form-grid result-pair-grid">
-              <NumberField
-                label="Left Wheelbase (in)"
-                value={sessionForm.left_wheelbase}
-                onChange={(value) => updateField("left_wheelbase", value)}
-                min="0"
-                step="0.001"
-              />
-              <NumberField
-                label="Right Wheelbase (in)"
-                value={sessionForm.right_wheelbase}
-                onChange={(value) => updateField("right_wheelbase", value)}
-                min="0"
-                step="0.001"
-              />
-            </div>
-          </fieldset>
-
-          <fieldset className="session-card">
-            <legend>Drivetrain</legend>
-            <div className="form-grid gear-grid">
-              <NumberField
-                label="Engine Gear (teeth)"
-                value={sessionForm.engine_gear}
-                onChange={(value) => updateField("engine_gear", value)}
-                min="1"
-                step="1"
-              />
-              <NumberField
-                label="Axle Gear (teeth)"
-                value={sessionForm.axle_gear}
-                onChange={(value) => updateField("axle_gear", value)}
-                min="1"
-                step="1"
-              />
-            </div>
-            <div className="calculated-grid centered">
-              <CalcStat label="Calculated Gear Ratio" value={gearRatio} />
-            </div>
-          </fieldset>
-
-          <fieldset className="session-card">
-            <legend>Result</legend>
-            <div className="form-grid result-pair-grid">
-              <NumberField
-                label="Best Lap (sec)"
-                value={sessionForm.lap_time}
-                onChange={(value) => updateField("lap_time", value)}
-                min="0"
-                step="0.001"
-                placeholder="8.742"
-              />
-              <NumberField
-                label="Total Laps"
-                value={sessionForm.total_laps}
-                onChange={(value) => updateField("total_laps", value)}
-                min="0"
-                step="1"
-              />
-            </div>
-            <div className="form-grid result-pair-grid">
-              <NumberField
-                label="Average RPM"
-                value={sessionForm.average_rpm}
-                onChange={(value) => updateField("average_rpm", value)}
-                min="0"
-                step="1"
-              />
-              <NumberField
-                label="Average Drops (RPM)"
-                value={sessionForm.average_drops}
-                onChange={(value) => updateField("average_drops", value)}
-                min="0"
-                step="1"
-              />
-            </div>
-            {showsPositionFields ? (
-              <div className="form-grid result-pair-grid">
-                <NumberField
-                  label="Start Position"
-                  value={sessionForm.start_position}
-                  onChange={(value) => updateField("start_position", value)}
-                  min="1"
-                  step="1"
-                />
-                <NumberField
-                  label="End Position"
-                  value={sessionForm.end_position}
-                  onChange={(value) => updateField("end_position", value)}
-                  min="1"
-                  step="1"
-                />
-              </div>
-            ) : null}
-            <div className="corner-grid setup-corner-grid">
-              {corners.map((corner) => (
-                <NumberField
-                  key={`${corner}_tire_temp`}
-                  label={`${corner.toUpperCase()} Tire Temp (F)`}
-                  value={sessionForm[`${corner}_tire_temp`]}
-                  onChange={(value) => updateField(`${corner}_tire_temp`, value)}
-                  min="0"
-                  step="1"
-                />
-              ))}
-            </div>
-          </fieldset>
-
-          <fieldset className="session-card">
-            <legend>Notes</legend>
-            <div className="form-grid single">
-              <label>
-                Handling
-                <textarea
-                  value={sessionForm.handling}
-                  onChange={(event) => updateField("handling", event.target.value)}
-                  placeholder="Tight center, free off, snaps loose on entry"
-                />
-              </label>
-              <label>
-                Changes Made
-                <textarea
-                  value={sessionForm.changes}
-                  onChange={(event) => updateField("changes", event.target.value)}
-                  placeholder="Dropped RF .5 psi, adjusted corner weight"
-                />
-              </label>
-              <label>
-                Next Time
-                <textarea
-                  value={sessionForm.next_time}
-                  onChange={(event) => updateField("next_time", event.target.value)}
-                  placeholder="Try earlier throttle pickup"
-                />
-              </label>
-            </div>
-          </fieldset>
+          <DynamicSetupSections
+            fieldByKey={setupFieldByKey}
+            gearRatio={gearRatio}
+            form={sessionForm}
+            sections={setupSections}
+            showsPositionFields={showsPositionFields}
+            weightStats={weightStats}
+            onChange={updateField}
+          />
 
           <div className="button-row">
             <button
@@ -1035,6 +793,254 @@ function CalcStat({ label, value }: { label: string; value: string }) {
   );
 }
 
+function DynamicSetupSections({
+  fieldByKey,
+  form,
+  gearRatio,
+  onChange,
+  sections,
+  showsPositionFields,
+  weightStats,
+}: {
+  fieldByKey: Map<string, SetupFieldDefinition>;
+  form: SetupSessionInput;
+  gearRatio: string;
+  onChange: (field: SetupSessionInputField, value: string) => void;
+  sections: SetupSectionDefinition[];
+  showsPositionFields: boolean;
+  weightStats: ReturnType<typeof calculateWeightStats>;
+}) {
+  return (
+    <>
+      {sections.map((section) => {
+        const blocks = section.blocks
+          .map((block, index) => (
+            <SetupLayoutBlock
+              block={block}
+              fieldByKey={fieldByKey}
+              form={form}
+              gearRatio={gearRatio}
+              key={`${section.id}-${index}`}
+              showsPositionFields={showsPositionFields}
+              weightStats={weightStats}
+              onChange={onChange}
+            />
+          ))
+          .filter(Boolean);
+
+        if (!blocks.length) return null;
+
+        return (
+          <fieldset className="session-card" key={section.id}>
+            <legend>{section.title}</legend>
+            {blocks}
+          </fieldset>
+        );
+      })}
+    </>
+  );
+}
+
+function SetupLayoutBlock({
+  block,
+  fieldByKey,
+  form,
+  gearRatio,
+  onChange,
+  showsPositionFields,
+  weightStats,
+}: {
+  block: SetupSectionDefinition["blocks"][number];
+  fieldByKey: Map<string, SetupFieldDefinition>;
+  form: SetupSessionInput;
+  gearRatio: string;
+  onChange: (field: SetupSessionInputField, value: string) => void;
+  showsPositionFields: boolean;
+  weightStats: ReturnType<typeof calculateWeightStats>;
+}) {
+  if (block.type === "computed") {
+    if (block.computed === "weight_percentages") {
+      return (
+        <div className={block.className ?? "calculated-grid"}>
+          <CalcStat label="Front" value={weightStats.front} />
+          <CalcStat label="Left" value={weightStats.left} />
+          <CalcStat label="Right" value={weightStats.right} />
+          <CalcStat label="Rear" value={weightStats.rear} />
+          <CalcStat label="Cross" value={weightStats.cross} />
+        </div>
+      );
+    }
+
+    return (
+      <div className={block.className ?? "calculated-grid centered"}>
+        <CalcStat label="Calculated Gear Ratio" value={gearRatio} />
+      </div>
+    );
+  }
+
+  if (block.type === "corners") {
+    const corners = block.corners
+      .map(({ corner, fieldKeys }) => {
+        const fields = fieldKeys
+          .map((key) => fieldByKey.get(key))
+          .filter(isVisibleField(showsPositionFields));
+
+        return fields.length ? { corner, fields } : null;
+      })
+      .filter(Boolean) as Array<{
+        corner: string;
+        fields: SetupFieldDefinition[];
+      }>;
+
+    if (!corners.length) return null;
+
+    if (corners.every(({ fields }) => fields.length === 1)) {
+      return (
+        <div className={block.className ?? "corner-grid"}>
+          {corners.flatMap(({ fields }) =>
+            fields.map((field) => (
+              <SetupInputField
+                field={field}
+                key={field.key}
+                value={form[field.key] ?? ""}
+                onChange={(value) => onChange(field.key, value)}
+              />
+            )),
+          )}
+        </div>
+      );
+    }
+
+    return (
+      <div className={block.className ?? "corner-grid"}>
+        {corners.map(({ corner, fields }) => (
+          <div className="corner-box" key={corner}>
+            <h3>{corner.toUpperCase()}</h3>
+            {fields.map((field) => (
+              <SetupInputField
+                field={field}
+                key={field.key}
+                value={form[field.key] ?? ""}
+                onChange={(value) => onChange(field.key, value)}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
+    );
+  }
+
+  const fields = block.fieldKeys
+    .map((key) => fieldByKey.get(key))
+    .filter(isVisibleField(showsPositionFields));
+
+  if (!fields.length) return null;
+
+  return (
+    <div className={block.className ?? "form-grid result-pair-grid"}>
+      {fields.map((field) => (
+        <SetupInputField
+          field={field}
+          key={field.key}
+          value={form[field.key] ?? ""}
+          onChange={(value) => onChange(field.key, value)}
+        />
+      ))}
+    </div>
+  );
+}
+
+function isVisibleField(showsPositionFields: boolean) {
+  return (field: SetupFieldDefinition | undefined): field is SetupFieldDefinition =>
+    Boolean(
+      field &&
+        (showsPositionFields ||
+          (field.key !== "start_position" && field.key !== "end_position")),
+    );
+}
+
+function SetupInputField({
+  field,
+  onChange,
+  value,
+}: {
+  field: SetupFieldDefinition;
+  onChange: (value: string) => void;
+  value: string;
+}) {
+  if (field.type === "textarea") {
+    return (
+      <label>
+        {field.label}
+        <textarea
+          placeholder={field.placeholder}
+          value={value}
+          onChange={(event) => onChange(event.target.value)}
+        />
+      </label>
+    );
+  }
+
+  if (field.type === "radio") {
+    return (
+      <div className="radio-field">
+        <span>{field.label}</span>
+        <div className="segmented-radio" role="radiogroup" aria-label={field.label}>
+          {(field.options ?? []).map((option) => (
+            <label key={option}>
+              <input
+                checked={value === option}
+                name={field.key}
+                type="radio"
+                value={option}
+                onChange={(event) => onChange(event.target.value)}
+              />
+              <span>{option}</span>
+            </label>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (field.type === "select") {
+    return (
+      <label>
+        {field.label}
+        <select value={value} onChange={(event) => onChange(event.target.value)}>
+          <option value="">Choose option</option>
+          {(field.options ?? []).map((option) => (
+            <option key={option}>{option}</option>
+          ))}
+        </select>
+      </label>
+    );
+  }
+
+  if (field.type === "number" || field.type === "integer") {
+    return (
+      <NumberField
+        label={field.label}
+        max={field.max}
+        min={field.min}
+        placeholder={field.placeholder}
+        step={field.step}
+        value={value}
+        onChange={onChange}
+      />
+    );
+  }
+
+  return (
+    <TextField
+      label={field.label}
+      placeholder={field.placeholder}
+      value={value}
+      onChange={onChange}
+    />
+  );
+}
+
 function SessionHistoryCard({
   carName,
   engine,
@@ -1063,10 +1069,12 @@ function SessionHistoryCard({
   const stats = calculateWeightStats(sessionToInput(session));
   const gearPill = formatSessionGear(session, engine?.engineType?.gearbox_ratio);
   const sessionNotes = [
-    { label: "Handling", value: session.handling },
-    { label: "Changes", value: session.changes },
-    { label: "Next Time", value: session.next_time },
+    { label: "Handling", value: formatPayloadText(session, "handling") },
+    { label: "Changes", value: formatPayloadText(session, "changes") },
+    { label: "Next Time", value: formatPayloadText(session, "next_time") },
   ].filter((note) => Boolean(note.value?.trim()));
+  const lapTime = payloadNumber(session, "lap_time");
+  const totalLaps = payloadNumber(session, "total_laps");
 
   return (
     <article
@@ -1094,11 +1102,11 @@ function SessionHistoryCard({
             <span>{trackName}</span>
           </div>
           <div className="session-history-pills">
-            {session.lap_time !== null ? (
-              <span className="session-pill">Lap {session.lap_time.toFixed(3)}</span>
+            {lapTime !== null ? (
+              <span className="session-pill">Lap {lapTime.toFixed(3)}</span>
             ) : null}
-            {session.total_laps !== null ? (
-              <span className="session-pill">{session.total_laps} laps</span>
+            {totalLaps !== null ? (
+              <span className="session-pill">{totalLaps} laps</span>
             ) : null}
             {gearPill ? <span className="session-pill">{gearPill}</span> : null}
           </div>
@@ -1111,15 +1119,15 @@ function SessionHistoryCard({
             <SessionMiniStat label="Cross" value={stats.cross} />
             <SessionMiniStat
               label="Stagger"
-              value={formatOptionalNumber(session.stagger, 2)}
+              value={formatOptionalNumber(payloadNumber(session, "stagger"), 2)}
             />
             <SessionMiniStat
               label="RPM"
-              value={formatOptionalNumber(session.average_rpm, 0)}
+              value={formatOptionalNumber(payloadNumber(session, "average_rpm"), 0)}
             />
             <SessionMiniStat
               label="Drops"
-              value={formatOptionalNumber(session.average_drops, 0)}
+              value={formatOptionalNumber(payloadNumber(session, "average_drops"), 0)}
             />
           </div>
 
@@ -1277,9 +1285,15 @@ function sortSessions(a: SetupSession, b: SetupSession) {
 
 function sessionToInput(session: SetupSession): SetupSessionInput {
   const input = { ...emptySessionForm };
-  for (const field of Object.keys(input) as SetupSessionInputField[]) {
-    const value = session[field as keyof SetupSession];
-    input[field] = value === null || value === undefined ? "" : String(value);
+  const fields = new Set([
+    ...Object.keys(input),
+    ...Object.keys(session.setup_values ?? {}),
+    ...Object.keys(session.result_values ?? {}),
+    ...Object.keys(session.note_values ?? {}),
+  ]);
+
+  for (const field of fields) {
+    input[field] = sessionValueForInput(session, field);
   }
 
   if (input.session_time.length > 5) {
@@ -1327,6 +1341,18 @@ function formatOptionalNumber(value: number | null, digits: number) {
   return value === null ? "--" : value.toFixed(digits);
 }
 
+function payloadNumber(session: SetupSession, key: string) {
+  const value = sessionPayloadValue(session, key);
+  if (value === null || value === undefined || value === "") return null;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : null;
+}
+
+function formatPayloadText(session: SetupSession, key: string) {
+  const value = sessionPayloadValue(session, key);
+  return value === null || value === undefined ? "" : String(value);
+}
+
 function searchableSessionText(
   session: SetupSession,
   carName: string,
@@ -1340,14 +1366,14 @@ function searchableSessionText(
     session.session_type,
     session.driver,
     session.track_condition,
-    session.handling,
-    session.changes,
-    session.next_time,
-    session.tire_notes,
-    session.lf_tire_compound,
-    session.rf_tire_compound,
-    session.lr_tire_compound,
-    session.rr_tire_compound,
+    formatPayloadText(session, "handling"),
+    formatPayloadText(session, "changes"),
+    formatPayloadText(session, "next_time"),
+    formatPayloadText(session, "tire_notes"),
+    formatPayloadText(session, "lf_tire_compound"),
+    formatPayloadText(session, "rf_tire_compound"),
+    formatPayloadText(session, "lr_tire_compound"),
+    formatPayloadText(session, "rr_tire_compound"),
   ]
     .filter(Boolean)
     .join(" ");
@@ -1379,11 +1405,13 @@ function formatSessionGear(
   session: SetupSession,
   gearboxRatio: number | null | undefined,
 ) {
-  if (session.engine_gear === null || session.axle_gear === null) return "";
+  const engineGear = payloadNumber(session, "engine_gear");
+  const axleGear = payloadNumber(session, "axle_gear");
+  if (engineGear === null || axleGear === null) return "";
 
-  const combo = `${session.engine_gear}/${session.axle_gear}`;
-  if (!gearboxRatio || !session.engine_gear) return combo;
+  const combo = `${engineGear}/${axleGear}`;
+  if (!gearboxRatio || !engineGear) return combo;
 
-  const ratio = ((session.axle_gear / session.engine_gear) * gearboxRatio).toFixed(2);
+  const ratio = ((axleGear / engineGear) * gearboxRatio).toFixed(2);
   return `${combo} (${ratio})`;
 }
