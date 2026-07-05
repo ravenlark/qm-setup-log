@@ -105,9 +105,20 @@ create table public.track_notes (
   unique (user_id, track_id)
 );
 
+create table public.car_types (
+  id uuid primary key default gen_random_uuid(),
+  slug text not null unique,
+  name text not null unique,
+  sort_order integer not null default 0,
+  is_active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table public.cars (
   id uuid primary key default gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
+  car_type_id uuid references public.car_types(id) on delete restrict,
   name text not null,
   model text,
   year integer,
@@ -171,81 +182,14 @@ create table public.sessions (
   session_type text not null,
   driver text,
   is_baseline boolean not null default false,
+  setup_values jsonb not null default '{}'::jsonb,
+  result_values jsonb not null default '{}'::jsonb,
+  note_values jsonb not null default '{}'::jsonb,
 
   air_temp numeric(5, 1),
   humidity numeric(5, 2),
   track_temp numeric(5, 1),
   track_condition text,
-
-  lr_hub text,
-  lf_tire_compound text,
-  rf_tire_compound text,
-  lr_tire_compound text,
-  rr_tire_compound text,
-  lf_psi numeric(5, 2),
-  rf_psi numeric(5, 2),
-  lr_psi numeric(5, 2),
-  rr_psi numeric(5, 2),
-
-  lf_offset numeric(6, 3),
-  rf_offset numeric(6, 3),
-  lr_offset numeric(6, 3),
-  rr_offset numeric(6, 3),
-
-  lf_spring_rate integer,
-  rf_spring_rate integer,
-  lr_spring_rate integer,
-  rr_spring_rate integer,
-
-  lf_shock_valving text,
-  rf_shock_valving text,
-  lr_shock_valving text,
-  rr_shock_valving text,
-
-  stagger numeric(6, 3),
-  tire_notes text,
-
-  lf_weight numeric(6, 2),
-  rf_weight numeric(6, 2),
-  lr_weight numeric(6, 2),
-  rr_weight numeric(6, 2),
-
-  lf_ride_height numeric(6, 3),
-  rf_ride_height numeric(6, 3),
-  lr_ride_height numeric(6, 3),
-  rr_ride_height numeric(6, 3),
-
-  lf_camber numeric(5, 2),
-  rf_camber numeric(5, 2),
-  lf_caster numeric(5, 2),
-  rf_caster numeric(5, 2),
-
-  lf_panhard_holes integer,
-  rf_panhard_holes integer,
-  lr_panhard_holes integer,
-  rr_panhard_holes integer,
-
-  left_wheelbase numeric(7, 3),
-  right_wheelbase numeric(7, 3),
-
-  engine_gear integer,
-  axle_gear integer,
-
-  lap_time numeric(7, 3),
-  total_laps integer,
-  average_rpm integer,
-  average_drops integer,
-  start_position integer,
-  end_position integer,
-
-  lf_tire_temp integer,
-  rf_tire_temp integer,
-  lr_tire_temp integer,
-  rr_tire_temp integer,
-
-  handling text,
-  changes text,
-  next_time text,
 
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -290,8 +234,14 @@ create index tracks_state_name_idx
 create index track_notes_user_track_idx
   on public.track_notes (user_id, track_id);
 
+create index car_types_active_sort_idx
+  on public.car_types (is_active, sort_order, name);
+
 create index cars_user_name_idx
   on public.cars (user_id, name);
+
+create index cars_car_type_id_idx
+  on public.cars (car_type_id);
 
 create index engines_user_name_idx
   on public.engines (user_id, name);
@@ -342,6 +292,10 @@ create trigger track_notes_set_updated_at
 before update on public.track_notes
 for each row execute function public.set_updated_at();
 
+create trigger car_types_set_updated_at
+before update on public.car_types
+for each row execute function public.set_updated_at();
+
 create trigger cars_set_updated_at
 before update on public.cars
 for each row execute function public.set_updated_at();
@@ -370,6 +324,7 @@ alter table public.maintenance_types enable row level security;
 alter table public.track_types enable row level security;
 alter table public.tracks enable row level security;
 alter table public.track_notes enable row level security;
+alter table public.car_types enable row level security;
 alter table public.cars enable row level security;
 alter table public.engines enable row level security;
 alter table public.car_engine_assignments enable row level security;
@@ -386,6 +341,7 @@ grant select on public.maintenance_types to authenticated;
 grant select on public.track_types to authenticated;
 grant select, insert, update, delete on public.tracks to authenticated;
 grant select, insert, update, delete on public.track_notes to authenticated;
+grant select on public.car_types to authenticated;
 grant select, insert, update, delete on public.cars to authenticated;
 grant select, insert, update, delete on public.engines to authenticated;
 grant select, insert, update, delete on public.car_engine_assignments to authenticated;
@@ -433,6 +389,11 @@ create policy "Authenticated users can read track types"
   to authenticated
   using (true);
 
+create policy "Authenticated users can read active car types"
+  on public.car_types for select
+  to authenticated
+  using (is_active);
+
 create policy "Users can read visible tracks"
   on public.tracks for select
   to authenticated
@@ -472,7 +433,18 @@ create policy "Users can manage their own cars"
   on public.cars for all
   to authenticated
   using (auth.uid() = user_id)
-  with check (auth.uid() = user_id);
+  with check (
+    auth.uid() = user_id
+    and (
+      car_type_id is null
+      or exists (
+        select 1
+        from public.car_types
+        where car_types.id = cars.car_type_id
+          and car_types.is_active
+      )
+    )
+  );
 
 create policy "Users can manage their own engines"
   on public.engines for all
@@ -551,6 +523,16 @@ on conflict (name) do update
 set
   max_cars = excluded.max_cars,
   max_engines = excluded.max_engines,
+  is_active = true;
+
+insert into public.car_types (slug, name, sort_order)
+values
+  ('quarter_midget', 'Quarter Midget', 10),
+  ('legend', 'Legend Car', 20)
+on conflict (slug) do update
+set
+  name = excluded.name,
+  sort_order = excluded.sort_order,
   is_active = true;
 
 create or replace function public.ensure_free_subscription()

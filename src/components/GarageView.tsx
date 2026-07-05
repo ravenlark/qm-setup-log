@@ -5,7 +5,9 @@ import {
   createCar,
   deleteCar,
   fetchCars,
+  fetchCarTypes,
   updateCar,
+  type CarType,
   type RaceCar,
   type RaceCarInput,
 } from "../data/cars";
@@ -31,7 +33,11 @@ import {
   type EngineWithType,
   type MaintenanceType,
 } from "../data/engines";
-import { fetchSessions, type SetupSession } from "../data/sessions";
+import {
+  fetchSessions,
+  sessionPayloadValue,
+  type SetupSession,
+} from "../data/sessions";
 import {
   ACCOUNT_FEATURES,
   fetchAccountLimits,
@@ -48,6 +54,7 @@ const emptyEngineForm: EngineInput = {
 };
 
 const emptyCarForm: RaceCarInput = {
+  car_type_id: "",
   name: "",
   model: "",
   year: "",
@@ -78,6 +85,7 @@ type EngineStats = {
 
 export function GarageView({ supabase, userId }: GarageViewProps) {
   const [cars, setCars] = useState<RaceCar[]>([]);
+  const [carTypes, setCarTypes] = useState<CarType[]>([]);
   const [engineTypes, setEngineTypes] = useState<EngineType[]>([]);
   const [maintenanceTypes, setMaintenanceTypes] = useState<MaintenanceType[]>([]);
   const [engines, setEngines] = useState<EngineWithType[]>([]);
@@ -176,6 +184,7 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
 
     Promise.all([
       fetchCars(supabase),
+      fetchCarTypes(supabase),
       fetchActiveEngineAssignments(supabase),
       fetchEngineTypes(supabase),
       fetchMaintenanceTypes(supabase),
@@ -186,6 +195,7 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
       .then(
         async ([
           nextCars,
+          nextCarTypes,
           nextAssignments,
           nextTypes,
           nextMaintenanceTypes,
@@ -201,6 +211,7 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
 
           if (!isCurrent) return;
           setCars(nextCars);
+          setCarTypes(nextCarTypes);
           setEngineAssignments(nextAssignments);
           setEngineTypes(nextTypes);
           setMaintenanceTypes(nextMaintenanceTypes);
@@ -238,7 +249,10 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
     }
 
     setEditingCarId("");
-    setCarForm(emptyCarForm);
+    setCarForm({
+      ...emptyCarForm,
+      car_type_id: carTypes[0]?.id || "",
+    });
     setMessage("");
     setActiveModal("car");
   }
@@ -247,6 +261,7 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
     setEditingCarId(car.id);
     setCarForm({
       name: car.name,
+      car_type_id: car.car_type_id ?? carTypes[0]?.id ?? "",
       model: car.model ?? "",
       year: car.year === null ? "" : String(car.year),
       notes: car.notes ?? "",
@@ -676,6 +691,23 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
                   }
                   placeholder="Blue car"
                 />
+              </label>
+              <label>
+                Type
+                <select
+                  required
+                  value={carForm.car_type_id}
+                  onChange={(event) =>
+                    setCarForm({ ...carForm, car_type_id: event.target.value })
+                  }
+                >
+                  <option value="">Choose type</option>
+                  {carTypes.map((carType) => (
+                    <option key={carType.id} value={carType.id}>
+                      {carType.name}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label>
                 Model
@@ -1174,6 +1206,7 @@ function engineSummary(engine: EngineWithType, carName: string, totalLaps: numbe
 
 function carSummary(car: RaceCar, engineName: string, sessionCount: number) {
   return [
+    car.carType?.name,
     car.year,
     car.model,
     engineName === "Not installed" ? "" : engineName,
@@ -1219,7 +1252,10 @@ function sortMaintenanceEntries(
 }
 
 function sumLaps(sessions: SetupSession[]) {
-  return sessions.reduce((total, session) => total + (session.total_laps ?? 0), 0);
+  return sessions.reduce((total, session) => {
+    const laps = Number(sessionPayloadValue(session, "total_laps") ?? 0);
+    return total + (Number.isFinite(laps) ? laps : 0);
+  }, 0);
 }
 
 function localDateValue(date = new Date()) {

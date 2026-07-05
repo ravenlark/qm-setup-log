@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ChevronDown, MapPin, Pencil, Plus, Save, Star, Trash2, X } from "lucide-react";
-import { fetchSessions, type SetupSession } from "../data/sessions";
+import {
+  fetchSessions,
+  sessionPayloadValue,
+  type SetupSession,
+} from "../data/sessions";
 import {
   ACCOUNT_FEATURES,
   fetchAccountLimits,
@@ -98,7 +102,7 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
       };
 
       current.totalSessions += 1;
-      current.totalLaps += session.total_laps ?? 0;
+      current.totalLaps += sessionNumber(session, "total_laps");
 
       if (
         !current.lastSession ||
@@ -1151,6 +1155,13 @@ function formatShortDate(session: SetupSession) {
   });
   const time = session.session_time ? session.session_time.slice(0, 5) : "";
   return [shortDate, time].filter(Boolean).join(" ");
+}
+
+function sessionNumber(session: SetupSession, key: string) {
+  const value = sessionPayloadValue(session, key);
+  if (value === null || value === undefined || value === "") return 0;
+  const numberValue = Number(value);
+  return Number.isFinite(numberValue) ? numberValue : 0;
 }
 
 function featureMessage(_feature: string, _limits: AccountLimits | null) {

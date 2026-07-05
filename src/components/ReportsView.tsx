@@ -2,7 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { fetchCars, type RaceCar } from "../data/cars";
 import { fetchEngines, type EngineWithType } from "../data/engines";
-import { fetchSessions, type SetupSession } from "../data/sessions";
+import {
+  fetchSessions,
+  sessionPayloadValue,
+  type SetupSession,
+} from "../data/sessions";
+import {
+  setupFieldsForCarType,
+  type SetupFieldDefinition,
+} from "../data/setupFields/index";
 import { fetchTracks, type TrackWithNotes } from "../data/tracks";
 
 type ReportsViewProps = {
@@ -14,7 +22,7 @@ type DiffCategory = "Setup" | "Conditions" | "Results";
 
 type DiffField = {
   category: DiffCategory;
-  key: keyof SetupSession | "gear_ratio";
+  key: string;
   label: string;
   format?: (value: unknown, session: SetupSession) => string;
 };
@@ -27,52 +35,6 @@ type DiffRow = {
   changed: boolean;
 };
 
-const setupFields: DiffField[] = [
-  { category: "Setup", key: "lr_hub", label: "LR Hub" },
-  { category: "Setup", key: "lf_tire_compound", label: "LF Tire Compound" },
-  { category: "Setup", key: "rf_tire_compound", label: "RF Tire Compound" },
-  { category: "Setup", key: "lr_tire_compound", label: "LR Tire Compound" },
-  { category: "Setup", key: "rr_tire_compound", label: "RR Tire Compound" },
-  { category: "Setup", key: "lf_psi", label: "LF PSI" },
-  { category: "Setup", key: "rf_psi", label: "RF PSI" },
-  { category: "Setup", key: "lr_psi", label: "LR PSI" },
-  { category: "Setup", key: "rr_psi", label: "RR PSI" },
-  { category: "Setup", key: "lf_offset", label: "LF Offset" },
-  { category: "Setup", key: "rf_offset", label: "RF Offset" },
-  { category: "Setup", key: "lr_offset", label: "LR Offset" },
-  { category: "Setup", key: "rr_offset", label: "RR Offset" },
-  { category: "Setup", key: "lf_spring_rate", label: "LF Spring" },
-  { category: "Setup", key: "rf_spring_rate", label: "RF Spring" },
-  { category: "Setup", key: "lr_spring_rate", label: "LR Spring" },
-  { category: "Setup", key: "rr_spring_rate", label: "RR Spring" },
-  { category: "Setup", key: "lf_shock_valving", label: "LF Shock" },
-  { category: "Setup", key: "rf_shock_valving", label: "RF Shock" },
-  { category: "Setup", key: "lr_shock_valving", label: "LR Shock" },
-  { category: "Setup", key: "rr_shock_valving", label: "RR Shock" },
-  { category: "Setup", key: "stagger", label: "Stagger" },
-  { category: "Setup", key: "lf_weight", label: "LF Weight" },
-  { category: "Setup", key: "rf_weight", label: "RF Weight" },
-  { category: "Setup", key: "lr_weight", label: "LR Weight" },
-  { category: "Setup", key: "rr_weight", label: "RR Weight" },
-  { category: "Setup", key: "lf_ride_height", label: "LF Ride Height" },
-  { category: "Setup", key: "rf_ride_height", label: "RF Ride Height" },
-  { category: "Setup", key: "lr_ride_height", label: "LR Ride Height" },
-  { category: "Setup", key: "rr_ride_height", label: "RR Ride Height" },
-  { category: "Setup", key: "lf_camber", label: "LF Camber" },
-  { category: "Setup", key: "rf_camber", label: "RF Camber" },
-  { category: "Setup", key: "lf_caster", label: "LF Caster" },
-  { category: "Setup", key: "rf_caster", label: "RF Caster" },
-  { category: "Setup", key: "lf_panhard_holes", label: "LF Panhard" },
-  { category: "Setup", key: "rf_panhard_holes", label: "RF Panhard" },
-  { category: "Setup", key: "lr_panhard_holes", label: "LR Panhard" },
-  { category: "Setup", key: "rr_panhard_holes", label: "RR Panhard" },
-  { category: "Setup", key: "left_wheelbase", label: "Left Wheelbase" },
-  { category: "Setup", key: "right_wheelbase", label: "Right Wheelbase" },
-  { category: "Setup", key: "engine_gear", label: "Engine Gear" },
-  { category: "Setup", key: "axle_gear", label: "Axle Gear" },
-  { category: "Setup", key: "gear_ratio", label: "Gear Ratio" },
-];
-
 const conditionFields: DiffField[] = [
   { category: "Conditions", key: "track_id", label: "Track" },
   { category: "Conditions", key: "driver", label: "Driver" },
@@ -82,21 +44,6 @@ const conditionFields: DiffField[] = [
   { category: "Conditions", key: "track_condition", label: "Track Condition" },
   { category: "Conditions", key: "engine_id", label: "Engine" },
 ];
-
-const resultFields: DiffField[] = [
-  { category: "Results", key: "lap_time", label: "Best Lap" },
-  { category: "Results", key: "start_position", label: "Start Position" },
-  { category: "Results", key: "end_position", label: "End Position" },
-  { category: "Results", key: "average_rpm", label: "Average RPM" },
-  { category: "Results", key: "average_drops", label: "Average Drops" },
-  { category: "Results", key: "total_laps", label: "Total Laps" },
-  { category: "Results", key: "lf_tire_temp", label: "LF Tire Temp" },
-  { category: "Results", key: "rf_tire_temp", label: "RF Tire Temp" },
-  { category: "Results", key: "lr_tire_temp", label: "LR Tire Temp" },
-  { category: "Results", key: "rr_tire_temp", label: "RR Tire Temp" },
-];
-
-const allDiffFields = [...resultFields, ...conditionFields, ...setupFields];
 
 export function ReportsView({ supabase, userId }: ReportsViewProps) {
   const [cars, setCars] = useState<RaceCar[]>([]);
@@ -128,6 +75,21 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
   const runA = sessionsForCar.find((session) => session.id === runAId) ?? null;
   const runB = sessionsForCar.find((session) => session.id === runBId) ?? null;
   const selectedCar = carById.get(selectedCarId);
+  const carTypeFields = useMemo(
+    () => setupFieldsForCarType(selectedCar?.carType?.slug),
+    [selectedCar?.carType?.slug],
+  );
+  const setupFields = useMemo(() => buildDynamicDiffFields(carTypeFields, "Setup"), [
+    carTypeFields,
+  ]);
+  const resultFields = useMemo(
+    () => buildDynamicDiffFields(carTypeFields, "Results"),
+    [carTypeFields],
+  );
+  const allDiffFields = useMemo(
+    () => [...resultFields, ...conditionFields, ...setupFields],
+    [resultFields, setupFields],
+  );
 
   const setupDiffs = useMemo(
     () =>
@@ -356,7 +318,37 @@ function fieldValue(
       ? engineById.get(session.engine_id)?.name ?? "Unknown engine"
       : "--";
   }
-  return formatValue(session[field.key as keyof SetupSession]);
+  return formatValue(sessionFieldValue(session, field.key));
+}
+
+function buildDynamicDiffFields(
+  fields: SetupFieldDefinition[],
+  category: DiffCategory,
+): DiffField[] {
+  const scope = category === "Setup" ? "setup_values" : "result_values";
+  const dynamicFields = fields
+    .filter((field) => field.scope === scope)
+    .map((field) => ({
+      category,
+      key: field.key,
+      label: field.label,
+    }));
+
+  if (
+    category === "Setup" &&
+    dynamicFields.some((field) => field.key === "engine_gear") &&
+    dynamicFields.some((field) => field.key === "axle_gear")
+  ) {
+    dynamicFields.push({ category, key: "gear_ratio", label: "Gear Ratio" });
+  }
+
+  return dynamicFields;
+}
+
+function sessionFieldValue(session: SetupSession, key: string) {
+  const payloadValue = sessionPayloadValue(session, key);
+  if (payloadValue !== undefined) return payloadValue;
+  return session[key as keyof SetupSession];
 }
 
 function gearRatioFor(
@@ -366,10 +358,12 @@ function gearRatioFor(
   const gearboxRatio = session.engine_id
     ? engineById.get(session.engine_id)?.engineType?.gearbox_ratio
     : null;
-  if (!session.engine_gear || !session.axle_gear || !gearboxRatio) {
+  const engineGear = Number(sessionFieldValue(session, "engine_gear"));
+  const axleGear = Number(sessionFieldValue(session, "axle_gear"));
+  if (!engineGear || !axleGear || !gearboxRatio) {
     return "--";
   }
-  return ((session.axle_gear / session.engine_gear) * gearboxRatio).toFixed(2);
+  return ((axleGear / engineGear) * gearboxRatio).toFixed(2);
 }
 
 function formatValue(value: unknown) {
