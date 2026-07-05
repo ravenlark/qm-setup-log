@@ -25,7 +25,11 @@ import {
   type SetupFieldDefinition,
   type SetupSectionDefinition,
 } from "../data/setupFields/index";
-import { fetchTracks, type TrackWithNotes } from "../data/tracks";
+import {
+  fetchTracksByIds,
+  fetchUserTracks,
+  type TrackWithNotes,
+} from "../data/tracks";
 
 const sessionTypes = ["Practice", "Qualifying", "Heat", "Main"];
 
@@ -200,11 +204,34 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
     Promise.all([
       fetchCars(supabase),
       fetchEngines(supabase),
-      fetchTracks(supabase, userId, { includeArchived: true }),
       fetchActiveEngineAssignments(supabase),
       fetchSessions(supabase),
+      fetchUserTracks(supabase, userId),
     ])
-      .then(([nextCars, nextEngines, nextTracks, nextAssignments, nextSessions]) => {
+      .then(
+        async ([
+          nextCars,
+          nextEngines,
+          nextAssignments,
+          nextSessions,
+          nextTrackOptions,
+        ]) => {
+          const nextSessionTracks = await fetchTracksByIds(
+            supabase,
+            userId,
+            uniqueSessionTrackIds(nextSessions),
+            { includeArchived: true },
+          );
+          return {
+            nextAssignments,
+            nextCars,
+            nextEngines,
+            nextSessions,
+            nextTracks: mergeTracks(nextTrackOptions, nextSessionTracks),
+          };
+        },
+      )
+      .then(({ nextCars, nextEngines, nextTracks, nextAssignments, nextSessions }) => {
         if (!isCurrent) return;
         setCars(nextCars);
         setEngines(nextEngines);
@@ -335,11 +362,11 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
     const [nextCars, nextAssignments, nextTracks] = await Promise.all([
       fetchCars(supabase),
       fetchActiveEngineAssignments(supabase),
-      fetchTracks(supabase, userId, { includeArchived: true }),
+      fetchUserTracks(supabase, userId),
     ]);
     setCars(nextCars);
     setAssignments(nextAssignments);
-    setTracks(nextTracks);
+    setTracks((current) => mergeTracks(current, nextTracks));
 
     const nextTrackOptions = selectableTracks(nextTracks);
     const trackId = nextTrackOptions.some((track) => track.id === preferredTrackId)
@@ -1377,6 +1404,21 @@ function searchableSessionText(
   ]
     .filter(Boolean)
     .join(" ");
+}
+
+function uniqueSessionTrackIds(sessions: SetupSession[]) {
+  return Array.from(new Set(sessions.map((session) => session.track_id)));
+}
+
+function mergeTracks(
+  primaryTracks: TrackWithNotes[],
+  secondaryTracks: TrackWithNotes[],
+) {
+  const tracksById = new Map<string, TrackWithNotes>();
+  for (const track of [...primaryTracks, ...secondaryTracks]) {
+    tracksById.set(track.id, track);
+  }
+  return Array.from(tracksById.values()).sort(sortTracksByName);
 }
 
 function selectableTracks(tracks: TrackWithNotes[]) {

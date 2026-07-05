@@ -11,7 +11,7 @@ import {
   setupFieldsForCarType,
   type SetupFieldDefinition,
 } from "../data/setupFields/index";
-import { fetchTracks, type TrackWithNotes } from "../data/tracks";
+import { fetchTracksByIds, type TrackWithNotes } from "../data/tracks";
 
 type ReportsViewProps = {
   supabase: SupabaseClient;
@@ -116,10 +116,18 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
     Promise.all([
       fetchCars(supabase),
       fetchEngines(supabase),
-      fetchTracks(supabase, userId, { includeArchived: true }),
       fetchSessions(supabase),
     ])
-      .then(([nextCars, nextEngines, nextTracks, nextSessions]) => {
+      .then(async ([nextCars, nextEngines, nextSessions]) => {
+        const nextTracks = await fetchTracksByIds(
+          supabase,
+          userId,
+          uniqueSessionTrackIds(nextSessions),
+          { includeArchived: true },
+        );
+        return { nextCars, nextEngines, nextSessions, nextTracks };
+      })
+      .then(({ nextCars, nextEngines, nextTracks, nextSessions }) => {
         if (!isCurrent) return;
         setCars(nextCars);
         setEngines(nextEngines);
@@ -386,6 +394,10 @@ function sessionLabel(
   ]
     .filter(Boolean)
     .join(" - ");
+}
+
+function uniqueSessionTrackIds(sessions: SetupSession[]) {
+  return Array.from(new Set(sessions.map((session) => session.track_id)));
 }
 
 function formatDateTime(session: SetupSession) {

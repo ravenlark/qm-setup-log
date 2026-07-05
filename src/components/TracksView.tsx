@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { ChevronDown, MapPin, Pencil, Plus, Save, Star, Trash2, X } from "lucide-react";
 import {
@@ -48,6 +56,8 @@ const emptyNotesForm: TrackNotesInput = {
   notes: "",
 };
 
+const catalogPageSize = 50;
+
 type TracksViewProps = {
   supabase: SupabaseClient;
   userId: string;
@@ -81,10 +91,18 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
   const [notesForm, setNotesForm] = useState(emptyNotesForm);
   const [trackSearch, setTrackSearch] = useState("");
   const [catalogSearch, setCatalogSearch] = useState("");
+  const [debouncedCatalogSearch, setDebouncedCatalogSearch] = useState("");
+  const [catalogPage, setCatalogPage] = useState(0);
+  const [hasMoreCatalogTracks, setHasMoreCatalogTracks] = useState(true);
+  const [isLoadingMoreCatalogTracks, setIsLoadingMoreCatalogTracks] =
+    useState(false);
   const [accountLimits, setAccountLimits] = useState<AccountLimits | null>(null);
   const [status, setStatus] = useState<ViewStatus>("loading");
   const [catalogStatus, setCatalogStatus] = useState<CatalogStatus>("idle");
   const [message, setMessage] = useState("");
+  const catalogRequestIdRef = useRef(0);
+  const catalogSentinelRef = useRef<HTMLDivElement | null>(null);
+  const catalogListRef = useRef<HTMLDivElement | null>(null);
 
   const notesTrack = useMemo(
     () => tracks.find((track) => track.id === notesTrackId) ?? null,
@@ -124,13 +142,6 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
     });
   }, [trackSearch, tracks]);
 
-  const visibleCatalogTracks = useMemo(() => {
-    const search = catalogSearch.trim().toLowerCase();
-    return catalogTracks.filter((track) => {
-      return !search || searchableTrackText(track).toLowerCase().includes(search);
-    });
-  }, [catalogSearch, catalogTracks]);
-
   const organizedTracks = useMemo(
     () => organizeTracks(visibleTracks),
     [visibleTracks],
@@ -169,21 +180,126 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
     };
   }, [supabase, userId]);
 
-  async function loadCatalog() {
-    if (catalogStatus === "loading" || catalogStatus === "ready") return;
+  const loadCatalogPage = useCallback(
+    async ({
+      mode,
+      page,
+      search,
+    }: {
+      mode: "reset" | "append";
+      page: number;
+      search: string;
+    }) => {
+      const requestId = catalogRequestIdRef.current + 1;
+      catalogRequestIdRef.current = requestId;
+      const from = page * catalogPageSize;
+      const to = from + catalogPageSize - 1;
 
-    setCatalogStatus("loading");
-    try {
-      const nextCatalogTracks = await fetchTrackCatalog(supabase, userId);
-      setCatalogTracks(nextCatalogTracks);
-      setCatalogStatus("ready");
-    } catch (error) {
-      setCatalogStatus("ready");
-      setMessage(
-        error instanceof Error ? error.message : "Track catalog could not be loaded.",
-      );
+      if (mode === "reset") {
+        setCatalogStatus("loading");
+      } else {
+        setIsLoadingMoreCatalogTracks(true);
+      }
+
+      try {
+        const result = await fetchTrackCatalog(supabase, userId, {
+          from,
+          pageSize: catalogPageSize,
+          search,
+          to,
+        });
+
+        if (catalogRequestIdRef.current !== requestId) return;
+
+        setCatalogTracks((current) =>
+          mode === "reset" ? result.tracks : mergeCatalogTracks(current, result.tracks),
+        );
+        setCatalogPage(page);
+        setHasMoreCatalogTracks(result.hasMore);
+        setCatalogStatus("ready");
+      } catch (error) {
+        if (catalogRequestIdRef.current !== requestId) return;
+        setCatalogStatus("ready");
+        setMessage(
+          error instanceof Error ? error.message : "Track catalog could not be loaded.",
+        );
+      } finally {
+        if (catalogRequestIdRef.current === requestId) {
+          setIsLoadingMoreCatalogTracks(false);
+        }
+      }
+    },
+    [supabase, userId],
+  );
+
+  useEffect(() => {
+    if (activeModal !== "add" || addTrackTab !== "catalog") return;
+
+    const debounceTimer = window.setTimeout(() => {
+      setDebouncedCatalogSearch(catalogSearch.trim());
+    }, 250);
+
+    return () => window.clearTimeout(debounceTimer);
+  }, [activeModal, addTrackTab, catalogSearch]);
+
+  useEffect(() => {
+    if (activeModal !== "add" || addTrackTab !== "catalog") return;
+
+    setCatalogTracks([]);
+    setCatalogPage(0);
+    setHasMoreCatalogTracks(true);
+    void loadCatalogPage({
+      mode: "reset",
+      page: 0,
+      search: debouncedCatalogSearch,
+    });
+  }, [activeModal, addTrackTab, debouncedCatalogSearch, loadCatalogPage]);
+
+  const loadMoreCatalogTracks = useCallback(() => {
+    if (
+      catalogStatus === "loading" ||
+      isLoadingMoreCatalogTracks ||
+      !hasMoreCatalogTracks
+    ) {
+      return;
     }
-  }
+
+    void loadCatalogPage({
+      mode: "append",
+      page: catalogPage + 1,
+      search: debouncedCatalogSearch,
+    });
+  }, [
+    catalogPage,
+    catalogStatus,
+    debouncedCatalogSearch,
+    hasMoreCatalogTracks,
+    isLoadingMoreCatalogTracks,
+    loadCatalogPage,
+  ]);
+
+  useEffect(() => {
+    if (activeModal !== "add" || addTrackTab !== "catalog") return;
+    if (!("IntersectionObserver" in window)) return;
+
+    const sentinel = catalogSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((entry) => entry.isIntersecting)) {
+          loadMoreCatalogTracks();
+        }
+      },
+      {
+        root: catalogListRef.current,
+        rootMargin: "120px",
+      },
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [activeModal, addTrackTab, catalogTracks.length, loadMoreCatalogTracks]);
 
   function startTrackAdd() {
     setEditingTrackId("");
@@ -191,10 +307,10 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
     setNotesTrackId("");
     setNotesForm(emptyNotesForm);
     setCatalogSearch("");
+    setDebouncedCatalogSearch("");
     setAddTrackTab("catalog");
     setMessage("");
     setActiveModal("add");
-    void loadCatalog();
   }
 
   function startTrackEdit(track: TrackWithNotes) {
@@ -476,10 +592,7 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
               aria-selected={addTrackTab === "catalog"}
               role="tab"
               type="button"
-              onClick={() => {
-                setAddTrackTab("catalog");
-                void loadCatalog();
-              }}
+              onClick={() => setAddTrackTab("catalog")}
             >
               Track Catalog
             </button>
@@ -504,9 +617,9 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
               />
               {catalogStatus === "loading" ? (
                 <div className="empty-state">Loading catalog...</div>
-              ) : visibleCatalogTracks.length ? (
-                <div className="catalog-track-list">
-                  {visibleCatalogTracks.map((track) => (
+              ) : catalogTracks.length ? (
+                <div className="catalog-track-list" ref={catalogListRef}>
+                  {catalogTracks.map((track) => (
                     <CatalogTrackRow
                       key={track.id}
                       status={status}
@@ -514,8 +627,31 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
                       onToggleFavorite={handleToggleFavorite}
                     />
                   ))}
+                  <div
+                    aria-hidden="true"
+                    className="catalog-scroll-sentinel"
+                    ref={catalogSentinelRef}
+                  />
+                  {isLoadingMoreCatalogTracks ? (
+                    <div className="empty-state compact-empty-state">
+                      Loading more tracks...
+                    </div>
+                  ) : null}
+                  {!hasMoreCatalogTracks ? (
+                    <div className="catalog-end-note">End of catalog results</div>
+                  ) : null}
+                  {hasMoreCatalogTracks && !("IntersectionObserver" in window) ? (
+                    <button
+                      className="secondary-button catalog-load-more-button"
+                      disabled={isLoadingMoreCatalogTracks}
+                      type="button"
+                      onClick={loadMoreCatalogTracks}
+                    >
+                      Load more tracks
+                    </button>
+                  ) : null}
                 </div>
-              ) : catalogTracks.length ? (
+              ) : debouncedCatalogSearch ? (
                 <div className="empty-state">No catalog tracks match your search.</div>
               ) : (
                 <div className="empty-state">No catalog tracks available.</div>
@@ -712,7 +848,6 @@ function TrackRow({
             {!track.is_system ? <span className="garage-kind">My Track</span> : null}
             {track.surface ? <span className="session-pill">{track.surface}</span> : null}
             {track.length ? <span className="session-pill">{track.length}</span> : null}
-            <span className="session-pill">{track.is_banked ? "Banked" : "Flat"}</span>
           </span>
           <span className="track-compact-stats">
             <span>{stats?.totalSessions ?? 0} sessions</span>
@@ -917,35 +1052,6 @@ function TrackFormFields({
           />
         </label>
       </div>
-      <div className="radio-field track-shape-field">
-        <span>Track Shape</span>
-        <div
-          aria-label="Track shape"
-          className="segmented-radio two-options"
-          role="radiogroup"
-        >
-          <label>
-            <input
-              checked={trackForm.is_banked}
-              name="track_shape"
-              type="radio"
-              value="banked"
-              onChange={() => setTrackForm({ ...trackForm, is_banked: true })}
-            />
-            <span>Banked Track</span>
-          </label>
-          <label>
-            <input
-              checked={!trackForm.is_banked}
-              name="track_shape"
-              type="radio"
-              value="flat"
-              onChange={() => setTrackForm({ ...trackForm, is_banked: false })}
-            />
-            <span>Flat Track</span>
-          </label>
-        </div>
-      </div>
     </>
   );
 }
@@ -1113,6 +1219,17 @@ function mergeNotes(current: TrackNotes | null, saved: TrackNotes): TrackNotes {
   };
 }
 
+function mergeCatalogTracks(
+  current: TrackWithNotes[],
+  nextTracks: TrackWithNotes[],
+) {
+  const tracksById = new Map(current.map((track) => [track.id, track]));
+  for (const track of nextTracks) {
+    tracksById.set(track.id, track);
+  }
+  return Array.from(tracksById.values());
+}
+
 function trackNoteLines(track: TrackWithNotes) {
   const notes = track.notesRecord;
   return [
@@ -1180,7 +1297,6 @@ function searchableTrackText(track: TrackWithNotes) {
     track.country,
     track.surface,
     track.length,
-    track.is_banked ? "banked" : "flat",
     track.is_favorite ? "favorite favorites" : "",
     track.is_system ? "system track" : "my track your track private track",
     notes?.layout_notes,

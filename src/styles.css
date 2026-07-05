@@ -1300,6 +1300,28 @@ textarea:hover {
   gap: var(--space-3);
 }
 
+.catalog-track-list {
+  max-height: min(460px, calc(100vh - 300px));
+  min-height: 180px;
+  overflow: auto;
+  padding-right: 2px;
+}
+
+.catalog-scroll-sentinel {
+  min-height: 1px;
+}
+
+.catalog-end-note {
+  color: var(--color-muted);
+  font-size: var(--font-small);
+  font-weight: var(--weight-bold);
+  text-align: center;
+}
+
+.catalog-load-more-button {
+  justify-self: center;
+}
+
 .catalog-track-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;

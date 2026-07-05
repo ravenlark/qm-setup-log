@@ -63,29 +63,127 @@ export type TrackNotesInput = {
   notes: string;
 };
 
+export type TrackCatalogPage = {
+  tracks: TrackWithNotes[];
+  hasMore: boolean;
+};
+
 const trackSelect =
   "id, name, location, street_address, city, state, postal_code, country, surface, length, track_type_id, is_banked, is_system, created_by, archived_at";
 
 const notesSelect =
   "id, user_id, track_id, layout_notes, line_notes, surface_notes, tire_notes, facility_notes, notes, is_favorite";
 
-export async function fetchTracks(
+const idFetchChunkSize = 100;
+const notesFetchPageSize = 1000;
+
+export async function fetchUserTracks(
   supabase: SupabaseClient,
   userId: string,
-  options: { includeArchived?: boolean } = {},
 ): Promise<TrackWithNotes[]> {
-  const { data: tracks, error: tracksError } = await supabase
+  const notesByTrackId = await fetchUserTrackNotesByTrackId(supabase, userId);
+  const favoriteTrackIds = Array.from(notesByTrackId.values())
+    .filter((note) => note.is_favorite)
+    .map((note) => note.track_id);
+
+  let query = supabase
     .from("tracks")
     .select(trackSelect)
-    .order("is_system", { ascending: false })
+    .is("archived_at", null)
     .order("name", { ascending: true });
 
+  if (favoriteTrackIds.length) {
+    query = query.or(
+      `created_by.eq.${userId},id.in.(${favoriteTrackIds.join(",")})`,
+    );
+  } else {
+    query = query.eq("created_by", userId);
+  }
+
+  const { data: tracks, error: tracksError } = await query;
+
   if (tracksError) throw tracksError;
+
+  return (tracks ?? [])
+    .map((track) => trackWithNotes(track as Track, notesByTrackId))
+    .filter((track) => !track.is_system || track.is_favorite)
+    .sort(sortTracksByName);
+}
+
+export async function fetchTracksByIds(
+  supabase: SupabaseClient,
+  userId: string,
+  trackIds: string[],
+  options: { includeArchived?: boolean } = {},
+): Promise<TrackWithNotes[]> {
+  const uniqueTrackIds = Array.from(new Set(trackIds.filter(Boolean)));
+  if (!uniqueTrackIds.length) return [];
+
+  const [tracks, notesByTrackId] = await Promise.all([
+    fetchTrackRowsByIds(supabase, uniqueTrackIds),
+    fetchUserTrackNotesByTrackId(supabase, userId),
+  ]);
+
+  return tracks
+    .map((track) => trackWithNotes(track, notesByTrackId))
+    .filter((track) => options.includeArchived || !track.archived_at)
+    .sort(sortTracksByName);
+}
+
+export async function fetchTrackCatalog(
+  supabase: SupabaseClient,
+  userId: string,
+  options: { search?: string; from?: number; to?: number; pageSize?: number } = {},
+): Promise<TrackCatalogPage> {
+  const pageSize = options.pageSize ?? 50;
+  const from = options.from ?? 0;
+  const to = options.to ?? from + pageSize - 1;
+  const search = cleanSearchTerm(options.search ?? "");
+  const fetchTo = to + 1;
+
+  let query = supabase
+    .from("tracks")
+    .select(trackSelect)
+    .eq("is_system", true)
+    .is("archived_at", null)
+    .order("name", { ascending: true })
+    .range(from, fetchTo);
+
+  if (search) {
+    const pattern = `*${search}*`;
+    query = query.or(
+      [
+        `name.ilike.${pattern}`,
+        `city.ilike.${pattern}`,
+        `state.ilike.${pattern}`,
+        `location.ilike.${pattern}`,
+        `postal_code.ilike.${pattern}`,
+        `surface.ilike.${pattern}`,
+        `length.ilike.${pattern}`,
+      ].join(","),
+    );
+  }
+
+  const { data: catalogTracks, error: tracksError } = await query;
+
+  if (tracksError) throw tracksError;
+
+  const requestedTracks = (catalogTracks ?? []) as Track[];
+  const tracks = requestedTracks.slice(0, pageSize);
+  const hasMore = requestedTracks.length > pageSize;
+
+  if (!tracks.length) {
+    return { tracks: [], hasMore: false };
+  }
 
   const { data: notes, error: notesError } = await supabase
     .from("track_notes")
     .select(notesSelect)
-    .eq("user_id", userId);
+    .eq("user_id", userId)
+    .in(
+      "track_id",
+      tracks.map((track) => track.id),
+    );
 
   if (notesError) throw notesError;
 
@@ -93,36 +191,10 @@ export async function fetchTracks(
     (notes ?? []).map((note) => [note.track_id, note as TrackNotes]),
   );
 
-  return (tracks ?? [])
-    .map((track) => {
-      const notesRecord = notesByTrackId.get(track.id) ?? null;
-      return {
-        ...(track as Track),
-        is_favorite: notesRecord?.is_favorite ?? false,
-        notesRecord,
-      };
-    })
-    .filter((track) => options.includeArchived || !track.archived_at);
-}
-
-export async function fetchUserTracks(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<TrackWithNotes[]> {
-  const tracks = await fetchTracks(supabase, userId);
-  return tracks
-    .filter((track) =>
-      track.is_system ? track.is_favorite : track.created_by === userId,
-    )
-    .sort(sortTracksByName);
-}
-
-export async function fetchTrackCatalog(
-  supabase: SupabaseClient,
-  userId: string,
-): Promise<TrackWithNotes[]> {
-  const tracks = await fetchTracks(supabase, userId);
-  return tracks.filter((track) => track.is_system).sort(sortTracksByName);
+  return {
+    hasMore,
+    tracks: tracks.map((track) => trackWithNotes(track, notesByTrackId)),
+  };
 }
 
 export async function fetchTrackTypes(
@@ -287,6 +359,68 @@ export async function removePrivateTrack(
 function cleanOptional(value: string): string | null {
   const trimmed = value.trim();
   return trimmed ? trimmed : null;
+}
+
+function cleanSearchTerm(value: string) {
+  return value.trim().replace(/[,%]/g, " ").replace(/\s+/g, " ");
+}
+
+async function fetchTrackRowsByIds(
+  supabase: SupabaseClient,
+  trackIds: string[],
+): Promise<Track[]> {
+  const tracks: Track[] = [];
+
+  for (let index = 0; index < trackIds.length; index += idFetchChunkSize) {
+    const chunk = trackIds.slice(index, index + idFetchChunkSize);
+    const { data, error } = await supabase
+      .from("tracks")
+      .select(trackSelect)
+      .in("id", chunk);
+
+    if (error) throw error;
+    tracks.push(...((data ?? []) as Track[]));
+  }
+
+  return tracks;
+}
+
+async function fetchUserTrackNotesByTrackId(
+  supabase: SupabaseClient,
+  userId: string,
+): Promise<Map<string, TrackNotes>> {
+  const notes: TrackNotes[] = [];
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from("track_notes")
+      .select(notesSelect)
+      .eq("user_id", userId)
+      .range(from, from + notesFetchPageSize - 1);
+
+    if (error) throw error;
+
+    const page = (data ?? []) as TrackNotes[];
+    notes.push(...page);
+
+    if (page.length < notesFetchPageSize) break;
+    from += notesFetchPageSize;
+  }
+
+  return new Map(notes.map((note) => [note.track_id, note]));
+}
+
+function trackWithNotes(
+  track: Track,
+  notesByTrackId: Map<string, TrackNotes>,
+): TrackWithNotes {
+  const notesRecord = notesByTrackId.get(track.id) ?? null;
+  return {
+    ...track,
+    is_favorite: notesRecord?.is_favorite ?? false,
+    notesRecord,
+  };
 }
 
 function formatLocation(input: TrackInput): string | null {
