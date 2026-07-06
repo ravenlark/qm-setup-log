@@ -42,6 +42,80 @@ import { supabase, supabaseConfig } from "./lib/supabase";
 type AppTab = "sessions" | "setups" | "garage" | "tracks" | "reports";
 type AppView = AppTab | "profile";
 
+const siteOrigin = "https://mysetuplog.com";
+const siteImage = `${siteOrigin}/sitelogo.jpg`;
+const defaultSeoDescription =
+  "My Setup Log helps race teams track setup history, session notes, track notes, cars, engines, and maintenance records in one organized workspace.";
+
+type SeoMetadataProps = {
+  canonicalPath: string;
+  description: string;
+  robots?: "index, follow" | "noindex, follow" | "noindex, nofollow";
+  title: string;
+};
+
+function SeoMetadata({
+  canonicalPath,
+  description,
+  robots = "index, follow",
+  title,
+}: SeoMetadataProps) {
+  useEffect(() => {
+    const canonicalUrl = `${siteOrigin}${canonicalPath}`;
+
+    document.title = title;
+    setMetaTag("description", description);
+    setMetaTag("robots", robots);
+    setMetaTag("twitter:card", "summary_large_image");
+    setMetaTag("twitter:title", title);
+    setMetaTag("twitter:description", description);
+    setMetaTag("twitter:image", siteImage);
+    setPropertyTag("og:type", "website");
+    setPropertyTag("og:site_name", "My Setup Log");
+    setPropertyTag("og:title", title);
+    setPropertyTag("og:description", description);
+    setPropertyTag("og:url", canonicalUrl);
+    setPropertyTag("og:image", siteImage);
+    setCanonical(canonicalUrl);
+  }, [canonicalPath, description, robots, title]);
+
+  return null;
+}
+
+function setMetaTag(name: string, content: string) {
+  let tag = document.head.querySelector<HTMLMetaElement>(
+    `meta[name="${name}"]`,
+  );
+  if (!tag) {
+    tag = document.createElement("meta");
+    tag.name = name;
+    document.head.appendChild(tag);
+  }
+  tag.content = content;
+}
+
+function setPropertyTag(property: string, content: string) {
+  let tag = document.head.querySelector<HTMLMetaElement>(
+    `meta[property="${property}"]`,
+  );
+  if (!tag) {
+    tag = document.createElement("meta");
+    tag.setAttribute("property", property);
+    document.head.appendChild(tag);
+  }
+  tag.content = content;
+}
+
+function setCanonical(href: string) {
+  let tag = document.head.querySelector<HTMLLinkElement>('link[rel="canonical"]');
+  if (!tag) {
+    tag = document.createElement("link");
+    tag.rel = "canonical";
+    document.head.appendChild(tag);
+  }
+  tag.href = href;
+}
+
 const tabs = [
   { id: "sessions", label: "Sessions", icon: ClipboardList, path: "/app/sessions" },
   { id: "setups", label: "Setups", icon: Bookmark, path: "/app/setups" },
@@ -490,21 +564,36 @@ function AdminPage() {
   const isSupabaseConfigured = Boolean(
     supabaseConfig.url && supabaseConfig.publishableKey,
   );
+  const adminSeo = (
+    <SeoMetadata
+      canonicalPath="/admin"
+      description="My Setup Log admin pages are private."
+      robots="noindex, nofollow"
+      title="Admin | My Setup Log"
+    />
+  );
 
   if (accountHeader.authStatus === "loading") {
     return (
       <main className="app-shell admin-shell">
+        {adminSeo}
         <LoadingPanel message="Checking session..." />
       </main>
     );
   }
 
   if (!accountHeader.session) {
-    return <Navigate to="/" replace />;
+    return (
+      <>
+        {adminSeo}
+        <Navigate to="/" replace />
+      </>
+    );
   }
 
   return (
     <main className="app-shell admin-shell">
+      {adminSeo}
       <PageHeader
         accountHeader={accountHeader}
         brandHref="/app/sessions"
@@ -561,6 +650,11 @@ function HomePage() {
   if (homeAuthStatus === "loading") {
     return (
       <main className="app-shell home-shell">
+        <SeoMetadata
+          canonicalPath="/"
+          description={defaultSeoDescription}
+          title="My Setup Log | Race Setup Tracker"
+        />
         <LoadingPanel message="Loading My Setup Log..." />
       </main>
     );
@@ -568,6 +662,11 @@ function HomePage() {
 
   return (
     <main className="app-shell home-shell">
+      <SeoMetadata
+        canonicalPath="/"
+        description={defaultSeoDescription}
+        title="My Setup Log | Race Setup Tracker"
+      />
       <SiteHeader
         brandHref="/"
         home
@@ -664,6 +763,11 @@ function PricingPage() {
 
   return (
     <main className="app-shell pricing-shell">
+      <SeoMetadata
+        canonicalPath="/pricing"
+        description="Compare My Setup Log plans for race teams that want organized setup history, session notes, garage records, and track notes."
+        title="Pricing | My Setup Log"
+      />
       <PageHeader
         accountHeader={accountHeader}
         brandHref="/"
@@ -759,6 +863,14 @@ function WorkspaceApp() {
   const isSupabaseConfigured = Boolean(
     supabaseConfig.url && supabaseConfig.publishableKey,
   );
+  const workspaceSeo = (
+    <SeoMetadata
+      canonicalPath={activeView ? `/app/${activeView}` : "/app"}
+      description="My Setup Log workspace pages are private to each race team."
+      robots="noindex, nofollow"
+      title="Workspace | My Setup Log"
+    />
+  );
   const mountedViews = useMemo(() => {
     const next = new Set(visitedViews);
     if (activeView && activeView !== "profile") next.add(activeView);
@@ -801,7 +913,12 @@ function WorkspaceApp() {
     }
 
     if (!session) {
-      return <Navigate to="/" replace />;
+      return (
+        <>
+          {workspaceSeo}
+          <Navigate to="/" replace />
+        </>
+      );
     }
 
     if (accountStatus === "error") {
@@ -860,11 +977,17 @@ function WorkspaceApp() {
   }
 
   if (!activeView) {
-    return <NotFoundPage showSignIn={false} />;
+    return (
+      <>
+        {workspaceSeo}
+        <NotFoundPage showSignIn={false} />
+      </>
+    );
   }
 
   return (
     <main className="app-shell">
+      {workspaceSeo}
       <SiteHeader
         teamLogoUrl={teamLogoUrl}
         actions={
@@ -918,6 +1041,12 @@ function PrivacyPolicyPage() {
 
   return (
     <main className="app-shell privacy-shell">
+      <SeoMetadata
+        canonicalPath="/privacy-policy"
+        description="Read the My Setup Log privacy policy for details about account information, racing records, analytics, service providers, and data rights."
+        robots="noindex, follow"
+        title="Privacy Policy | My Setup Log"
+      />
       <PageHeader
         accountHeader={accountHeader}
         brandHref="/"
@@ -938,7 +1067,7 @@ function PrivacyPolicyPage() {
           </p>
 
           <p>
-            MySetupLog is an online tool for quarter midget racing teams to track car setups, maintenance records, engine information, racing notes, and related team information. We use the information you provide to help organize your racing records and provide insight into your racing program.
+            MySetupLog is an online tool for race teams to track car setups, maintenance records, engine information, racing notes, and related team information. We use the information you provide to help organize your racing records and provide insight into your racing program.
           </p>
         </section>
 
@@ -1177,7 +1306,7 @@ function PrivacyPolicyPage() {
           <h3>10. Children's Privacy</h3>
 
           <p>
-            MySetupLog is intended for use by racing teams, parents, guardians, and other adults involved in quarter midget racing.
+            MySetupLog is intended for use by racing teams, parents, guardians, and other adults involved in racing.
           </p>
 
           <p>
@@ -1185,7 +1314,7 @@ function PrivacyPolicyPage() {
           </p>
 
           <p>
-            Because quarter midget racing often involves youth drivers, users may enter driver names as part of their racing records. We do not intentionally collect driver ages. Users are responsible for ensuring that they have the appropriate authority to enter and manage any driver information they provide.
+            Because racing can involve youth drivers, users may enter driver names as part of their racing records. We do not intentionally collect driver ages. Users are responsible for ensuring that they have the appropriate authority to enter and manage any driver information they provide.
           </p>
 
           <p>
@@ -1246,6 +1375,12 @@ function NotFoundPage({ showSignIn = true }: { showSignIn?: boolean }) {
 
   return (
     <main className="app-shell privacy-shell">
+      <SeoMetadata
+        canonicalPath="/"
+        description="The requested My Setup Log page was not found."
+        robots="noindex, follow"
+        title="Page Not Found | My Setup Log"
+      />
       <PageHeader
         accountHeader={accountHeader}
         brandHref="/"
