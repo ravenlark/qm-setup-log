@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { cached, invalidateCache } from "./cache";
 
 export const ACCOUNT_FEATURES = {
   customTracks: "custom_tracks",
@@ -52,45 +53,51 @@ type AccountLimitsRow = {
 export async function fetchAccountLimits(
   supabase: SupabaseClient,
 ): Promise<AccountLimits | null> {
-  const { data, error } = await supabase.rpc("account_plan_limits");
+  return cached("account-limits", 30 * 1000, async () => {
+    const { data, error } = await supabase.rpc("account_plan_limits");
 
-  if (error) return null;
+    if (error) return null;
 
-  const row = Array.isArray(data) ? data[0] : data;
-  if (!row) return null;
+    const row = Array.isArray(data) ? data[0] : data;
+    if (!row) return null;
 
-  const limits = row as AccountLimitsRow;
-  const billingSummary = await fetchBillingSummary(supabase);
-  const features = {
-    ...(limits.features ?? {}),
-    [ACCOUNT_FEATURES.customTracks]:
-      limits.features?.[ACCOUNT_FEATURES.customTracks] ??
-      Boolean(limits.can_create_custom_tracks),
-    [ACCOUNT_FEATURES.engineMaintenance]:
-      limits.features?.[ACCOUNT_FEATURES.engineMaintenance] ??
-      Boolean(limits.can_create_engine_maintenance),
-  };
+    const limits = row as AccountLimitsRow;
+    const billingSummary = await fetchBillingSummary(supabase);
+    const features = {
+      ...(limits.features ?? {}),
+      [ACCOUNT_FEATURES.customTracks]:
+        limits.features?.[ACCOUNT_FEATURES.customTracks] ??
+        Boolean(limits.can_create_custom_tracks),
+      [ACCOUNT_FEATURES.engineMaintenance]:
+        limits.features?.[ACCOUNT_FEATURES.engineMaintenance] ??
+        Boolean(limits.can_create_engine_maintenance),
+    };
 
-  return {
-    canCreateCar: limits.can_create_car,
-    canCreateEngine: limits.can_create_engine,
-    cancelAtPeriodEnd:
-      billingSummary?.cancelAtPeriodEnd ?? Boolean(limits.cancel_at_period_end),
-    carCount: limits.car_count,
-    currentPeriodEnd:
-      billingSummary?.currentPeriodEnd ?? limits.current_period_end ?? null,
-    engineCount: limits.engine_count,
-    maxCars: limits.max_cars,
-    maxEngines: limits.max_engines,
-    planDisplayName: limits.plan_display_name ?? limits.plan_name,
-    planName: limits.plan_name,
-    provider: limits.provider ?? null,
-    priceCents: billingSummary?.priceCents ?? limits.price_cents ?? null,
-    priceCurrency:
-      billingSummary?.priceCurrency ?? limits.price_currency ?? null,
-    status: limits.status,
-    features,
-  };
+    return {
+      canCreateCar: limits.can_create_car,
+      canCreateEngine: limits.can_create_engine,
+      cancelAtPeriodEnd:
+        billingSummary?.cancelAtPeriodEnd ?? Boolean(limits.cancel_at_period_end),
+      carCount: limits.car_count,
+      currentPeriodEnd:
+        billingSummary?.currentPeriodEnd ?? limits.current_period_end ?? null,
+      engineCount: limits.engine_count,
+      maxCars: limits.max_cars,
+      maxEngines: limits.max_engines,
+      planDisplayName: limits.plan_display_name ?? limits.plan_name,
+      planName: limits.plan_name,
+      provider: limits.provider ?? null,
+      priceCents: billingSummary?.priceCents ?? limits.price_cents ?? null,
+      priceCurrency:
+        billingSummary?.priceCurrency ?? limits.price_currency ?? null,
+      status: limits.status,
+      features,
+    };
+  });
+}
+
+export function invalidateAccountLimits() {
+  invalidateCache("account-limits");
 }
 
 export function hasAccountFeature(

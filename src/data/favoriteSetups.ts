@@ -35,10 +35,12 @@ const favoriteSetupSelect =
 
 export async function fetchFavoriteSetups(
   supabase: SupabaseClient,
+  userId: string,
 ): Promise<FavoriteSetup[]> {
   const { data, error } = await supabase
     .from("favorite_setups")
     .select(`${favoriteSetupSelect}, carType:car_types(id, slug, name)`)
+    .eq("user_id", userId)
     .order("name", { ascending: true });
 
   if (error) throw error;

@@ -54,9 +54,9 @@ export function FavoriteSetupsView({ supabase, userId }: FavoriteSetupsViewProps
   const [message, setMessage] = useState("");
 
   const refreshFavoriteSetups = useCallback(async () => {
-    const nextSetups = await fetchFavoriteSetups(supabase);
+    const nextSetups = await fetchFavoriteSetups(supabase, userId);
     setFavoriteSetups(nextSetups);
-  }, [supabase]);
+  }, [supabase, userId]);
 
   const carTypeById = useMemo(
     () => new Map(carTypes.map((carType) => [carType.id, carType])),
@@ -105,7 +105,7 @@ export function FavoriteSetupsView({ supabase, userId }: FavoriteSetupsViewProps
     setStatus("loading");
     setMessage("");
 
-    Promise.all([fetchCarTypes(supabase), fetchFavoriteSetups(supabase)])
+    Promise.all([fetchCarTypes(supabase), fetchFavoriteSetups(supabase, userId)])
       .then(([nextCarTypes, nextSetups]) => {
         if (!isCurrent) return;
         setCarTypes(nextCarTypes);
@@ -125,7 +125,7 @@ export function FavoriteSetupsView({ supabase, userId }: FavoriteSetupsViewProps
     return () => {
       isCurrent = false;
     };
-  }, [supabase]);
+  }, [supabase, userId]);
 
   useEffect(() => {
     let isCurrent = true;

@@ -1,4 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import {
+  Suspense,
+  lazy,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ReactNode,
+} from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
   BarChart3,
@@ -22,15 +30,9 @@ import {
   useNavigate,
   useParams,
 } from "react-router-dom";
-import { GarageView } from "./components/GarageView";
-import { FavoriteSetupsView } from "./components/FavoriteSetupsView";
 import { GoogleSignInButton } from "./components/GoogleSignInButton";
-import { ProfileView } from "./components/ProfileView";
-import { ReportsView } from "./components/ReportsView";
-import { SessionsView } from "./components/SessionsView";
 import { SiteFooter } from "./components/SiteFooter";
 import { SiteHeader } from "./components/SiteHeader";
-import { TracksView } from "./components/TracksView";
 import { ensureAccountSetup, type UserProfile } from "./lib/account";
 import { supabase, supabaseConfig } from "./lib/supabase";
 
@@ -86,6 +88,37 @@ const comingSoon = {
     body: "The schema is ready for comparison and trend queries, but the reports surface will make more sense once sessions are flowing into Supabase.",
   },
 };
+
+const SessionsView = lazy(() =>
+  import("./components/SessionsView").then((module) => ({
+    default: module.SessionsView,
+  })),
+);
+const FavoriteSetupsView = lazy(() =>
+  import("./components/FavoriteSetupsView").then((module) => ({
+    default: module.FavoriteSetupsView,
+  })),
+);
+const GarageView = lazy(() =>
+  import("./components/GarageView").then((module) => ({
+    default: module.GarageView,
+  })),
+);
+const TracksView = lazy(() =>
+  import("./components/TracksView").then((module) => ({
+    default: module.TracksView,
+  })),
+);
+const ReportsView = lazy(() =>
+  import("./components/ReportsView").then((module) => ({
+    default: module.ReportsView,
+  })),
+);
+const ProfileView = lazy(() =>
+  import("./components/ProfileView").then((module) => ({
+    default: module.ProfileView,
+  })),
+);
 
 async function signInWithGoogleRedirect(redirectPath: string) {
   if (!supabase) {
@@ -626,6 +659,7 @@ function WorkspaceApp() {
     ? (workspaceView as AppView)
     : null;
   const accountHeader = useAccountHeaderState({ redirectOnSignOut: true });
+  const [visitedViews, setVisitedViews] = useState<Set<AppTab>>(new Set());
   const {
     accountStatus,
     authError,
@@ -642,6 +676,21 @@ function WorkspaceApp() {
   const isSupabaseConfigured = Boolean(
     supabaseConfig.url && supabaseConfig.publishableKey,
   );
+  const mountedViews = useMemo(() => {
+    const next = new Set(visitedViews);
+    if (activeView && activeView !== "profile") next.add(activeView);
+    return next;
+  }, [activeView, visitedViews]);
+
+  useEffect(() => {
+    if (!activeView || activeView === "profile") return;
+    setVisitedViews((current) => {
+      if (current.has(activeView)) return current;
+      const next = new Set(current);
+      next.add(activeView);
+      return next;
+    });
+  }, [activeView]);
 
   async function signInWithGoogle() {
     setAuthError("");
@@ -698,21 +747,31 @@ function WorkspaceApp() {
 
     return (
       <>
-        <div className="tab-panel" hidden={activeView !== "sessions"}>
-          <SessionsView supabase={supabase} userId={session.user.id} />
-        </div>
-        <div className="tab-panel" hidden={activeView !== "setups"}>
-          <FavoriteSetupsView supabase={supabase} userId={session.user.id} />
-        </div>
-        <div className="tab-panel" hidden={activeView !== "garage"}>
-          <GarageView supabase={supabase} userId={session.user.id} />
-        </div>
-        <div className="tab-panel" hidden={activeView !== "tracks"}>
-          <TracksView supabase={supabase} userId={session.user.id} />
-        </div>
-        <div className="tab-panel" hidden={activeView !== "reports"}>
-          <ReportsView supabase={supabase} userId={session.user.id} />
-        </div>
+        {mountedViews.has("sessions") ? (
+          <div className="tab-panel" hidden={activeView !== "sessions"}>
+            <SessionsView supabase={supabase} userId={session.user.id} />
+          </div>
+        ) : null}
+        {mountedViews.has("setups") ? (
+          <div className="tab-panel" hidden={activeView !== "setups"}>
+            <FavoriteSetupsView supabase={supabase} userId={session.user.id} />
+          </div>
+        ) : null}
+        {mountedViews.has("garage") ? (
+          <div className="tab-panel" hidden={activeView !== "garage"}>
+            <GarageView supabase={supabase} userId={session.user.id} />
+          </div>
+        ) : null}
+        {mountedViews.has("tracks") ? (
+          <div className="tab-panel" hidden={activeView !== "tracks"}>
+            <TracksView supabase={supabase} userId={session.user.id} />
+          </div>
+        ) : null}
+        {mountedViews.has("reports") ? (
+          <div className="tab-panel" hidden={activeView !== "reports"}>
+            <ReportsView supabase={supabase} userId={session.user.id} />
+          </div>
+        ) : null}
       </>
     );
   }
@@ -756,7 +815,9 @@ function WorkspaceApp() {
 
       <section className="workspace">
         {authError ? <p className="auth-error">{authError}</p> : null}
-        {renderWorkspaceContent()}
+        <Suspense fallback={<LoadingPanel message="Loading your workspace..." />}>
+          {renderWorkspaceContent()}
+        </Suspense>
       </section>
       <SiteFooter />
     </main>

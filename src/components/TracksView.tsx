@@ -159,7 +159,7 @@ export function TracksView({ supabase, userId }: TracksViewProps) {
 
     Promise.all([
       fetchUserTracks(supabase, userId),
-      fetchSessions(supabase),
+      fetchSessions(supabase, userId),
       fetchAccountLimits(supabase),
     ])
       .then(([nextTracks, nextSessions, nextLimits]) => {

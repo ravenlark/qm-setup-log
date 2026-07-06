@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { cached } from "./cache";
 
 export type RaceCar = {
   id: string;
@@ -29,10 +30,12 @@ const carSelect = "id, user_id, car_type_id, name, model, year, notes";
 
 export async function fetchCars(
   supabase: SupabaseClient,
+  userId: string,
 ): Promise<RaceCar[]> {
   const { data, error } = await supabase
     .from("cars")
     .select(`${carSelect}, carType:car_types(id, slug, name)`)
+    .eq("user_id", userId)
     .order("name", { ascending: true });
 
   if (error) throw error;
@@ -42,15 +45,17 @@ export async function fetchCars(
 export async function fetchCarTypes(
   supabase: SupabaseClient,
 ): Promise<CarType[]> {
-  const { data, error } = await supabase
-    .from("car_types")
-    .select("id, slug, name")
-    .eq("is_active", true)
-    .order("sort_order", { ascending: true })
-    .order("name", { ascending: true });
+  return cached("car-types", 5 * 60 * 1000, async () => {
+    const { data, error } = await supabase
+      .from("car_types")
+      .select("id, slug, name")
+      .eq("is_active", true)
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true });
 
-  if (error) throw error;
-  return (data ?? []) as CarType[];
+    if (error) throw error;
+    return (data ?? []) as CarType[];
+  });
 }
 
 export async function createCar(

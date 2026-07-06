@@ -235,11 +235,11 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
     setMessage("");
 
     Promise.all([
-      fetchCars(supabase),
-      fetchEngines(supabase),
-      fetchActiveEngineAssignments(supabase),
-      fetchSessions(supabase),
-      fetchFavoriteSetups(supabase),
+      fetchCars(supabase, userId),
+      fetchEngines(supabase, userId),
+      fetchActiveEngineAssignments(supabase, userId),
+      fetchSessions(supabase, userId),
+      fetchFavoriteSetups(supabase, userId),
       fetchUserTracks(supabase, userId),
     ])
       .then(
@@ -316,7 +316,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
       const source = (event as CustomEvent<{ source?: string }>).detail?.source;
       if (source === "sessions") return;
 
-      fetchFavoriteSetups(supabase)
+      fetchFavoriteSetups(supabase, userId)
         .then((nextFavoriteSetups) => {
           if (!isCurrent) return;
           setFavoriteSetups(nextFavoriteSetups);
@@ -339,7 +339,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
         handleFavoriteSetupsChanged,
       );
     };
-  }, [supabase]);
+  }, [supabase, userId]);
 
   function updateField(field: SetupSessionInputField, value: string) {
     setSessionForm((current) => ({ ...current, [field]: value }));
@@ -512,8 +512,8 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
 
   async function refreshSessionOptions(preferredTrackId: string) {
     const [nextCars, nextAssignments, nextTracks] = await Promise.all([
-      fetchCars(supabase),
-      fetchActiveEngineAssignments(supabase),
+      fetchCars(supabase, userId),
+      fetchActiveEngineAssignments(supabase, userId),
       fetchUserTracks(supabase, userId),
     ]);
     setCars(nextCars);

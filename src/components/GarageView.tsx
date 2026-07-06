@@ -20,7 +20,7 @@ import {
   createEngineMaintenance,
   deleteEngine,
   deleteEngineMaintenance,
-  fetchEngineMaintenance,
+  fetchEngineMaintenanceForEngines,
   fetchEngineTypes,
   fetchEngines,
   fetchMaintenanceTypes,
@@ -43,6 +43,7 @@ import {
   fetchAccountLimits,
   formatLimitUsage,
   hasAccountFeature,
+  invalidateAccountLimits,
   type AccountLimits,
 } from "../data/subscriptions";
 
@@ -183,13 +184,13 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
     setMessage("");
 
     Promise.all([
-      fetchCars(supabase),
+      fetchCars(supabase, userId),
       fetchCarTypes(supabase),
-      fetchActiveEngineAssignments(supabase),
+      fetchActiveEngineAssignments(supabase, userId),
       fetchEngineTypes(supabase),
       fetchMaintenanceTypes(supabase),
-      fetchEngines(supabase),
-      fetchSessions(supabase),
+      fetchEngines(supabase, userId),
+      fetchSessions(supabase, userId),
       fetchAccountLimits(supabase),
     ])
       .then(
@@ -203,11 +204,11 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
           nextSessions,
           nextLimits,
         ]) => {
-          const nextMaintenanceEntries = (
-            await Promise.all(
-              nextEngines.map((engine) => fetchEngineMaintenance(supabase, engine.id)),
-            )
-          ).flat();
+          const nextMaintenanceEntries = await fetchEngineMaintenanceForEngines(
+            supabase,
+            userId,
+            nextEngines.map((engine) => engine.id),
+          );
 
           if (!isCurrent) return;
           setCars(nextCars);
@@ -240,7 +241,7 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
     return () => {
       isCurrent = false;
     };
-  }, [supabase]);
+  }, [supabase, userId]);
 
   function startCarAdd() {
     if (!canCreateCar) {
@@ -379,6 +380,7 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
           ? { ...current, carCount: current.carCount + 1 }
           : current,
       );
+      if (!editingCarId) invalidateAccountLimits();
       resetCarForm();
       setMessage(editingCarId ? "Car updated." : "Car added.");
     } catch (error) {
@@ -402,6 +404,7 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
       setAccountLimits((current) =>
         current ? { ...current, carCount: Math.max(0, current.carCount - 1) } : current,
       );
+      invalidateAccountLimits();
       setEngineAssignments((current) =>
         current.filter((assignment) => assignment.car_id !== car.id),
       );
@@ -446,6 +449,7 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
           ? { ...current, engineCount: current.engineCount + 1 }
           : current,
       );
+      if (!editingEngineId) invalidateAccountLimits();
       resetEngineForm();
       setMessage(editingEngineId ? "Engine updated." : "Engine added.");
     } catch (error) {
@@ -471,6 +475,7 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
           ? { ...current, engineCount: Math.max(0, current.engineCount - 1) }
           : current,
       );
+      invalidateAccountLimits();
       setEngineAssignments((current) =>
         current.filter((assignment) => assignment.engine_id !== engine.id),
       );

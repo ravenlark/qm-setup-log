@@ -114,9 +114,9 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
     setMessage("");
 
     Promise.all([
-      fetchCars(supabase),
-      fetchEngines(supabase),
-      fetchSessions(supabase),
+      fetchCars(supabase, userId),
+      fetchEngines(supabase, userId),
+      fetchSessions(supabase, userId),
     ])
       .then(async ([nextCars, nextEngines, nextSessions]) => {
         const nextTracks = await fetchTracksByIds(

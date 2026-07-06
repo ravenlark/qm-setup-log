@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { cached } from "./cache";
 
 export type EngineType = {
   id: string;
@@ -57,35 +58,41 @@ export type EngineMaintenanceInput = {
 export async function fetchEngineTypes(
   supabase: SupabaseClient,
 ): Promise<EngineType[]> {
-  const { data, error } = await supabase
-    .from("engine_types")
-    .select("id, name, gearbox_ratio")
-    .order("sort_order", { ascending: true })
-    .order("name", { ascending: true });
+  return cached("engine-types", 5 * 60 * 1000, async () => {
+    const { data, error } = await supabase
+      .from("engine_types")
+      .select("id, name, gearbox_ratio")
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true });
 
-  if (error) throw error;
-  return (data ?? []) as EngineType[];
+    if (error) throw error;
+    return (data ?? []) as EngineType[];
+  });
 }
 
 export async function fetchMaintenanceTypes(
   supabase: SupabaseClient,
 ): Promise<MaintenanceType[]> {
-  const { data, error } = await supabase
-    .from("maintenance_types")
-    .select("id, name")
-    .order("sort_order", { ascending: true })
-    .order("name", { ascending: true });
+  return cached("maintenance-types", 5 * 60 * 1000, async () => {
+    const { data, error } = await supabase
+      .from("maintenance_types")
+      .select("id, name")
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true });
 
-  if (error) throw error;
-  return (data ?? []) as MaintenanceType[];
+    if (error) throw error;
+    return (data ?? []) as MaintenanceType[];
+  });
 }
 
 export async function fetchEngines(
   supabase: SupabaseClient,
+  userId: string,
 ): Promise<EngineWithType[]> {
   const { data, error } = await supabase
     .from("engines")
     .select("id, user_id, engine_type_id, name, serial, notes, engine_types(id, name, gearbox_ratio)")
+    .eq("user_id", userId)
     .order("name", { ascending: true });
 
   if (error) throw error;
@@ -156,14 +163,27 @@ export async function deleteEngine(
 
 export async function fetchEngineMaintenance(
   supabase: SupabaseClient,
+  userId: string,
   engineId: string,
 ): Promise<EngineMaintenanceWithType[]> {
+  return fetchEngineMaintenanceForEngines(supabase, userId, [engineId]);
+}
+
+export async function fetchEngineMaintenanceForEngines(
+  supabase: SupabaseClient,
+  userId: string,
+  engineIds: string[],
+): Promise<EngineMaintenanceWithType[]> {
+  const uniqueEngineIds = Array.from(new Set(engineIds.filter(Boolean)));
+  if (!uniqueEngineIds.length) return [];
+
   const { data, error } = await supabase
     .from("engine_maintenance")
     .select(
       "id, user_id, engine_id, maintenance_type_id, maintenance_date, performed_by, cost, notes, maintenance_types(id, name)",
     )
-    .eq("engine_id", engineId)
+    .eq("user_id", userId)
+    .in("engine_id", uniqueEngineIds)
     .order("maintenance_date", { ascending: false });
 
   if (error) throw error;

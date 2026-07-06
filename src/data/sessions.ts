@@ -74,10 +74,12 @@ const sessionFields = [
 
 export async function fetchSessions(
   supabase: SupabaseClient,
+  userId: string,
 ): Promise<SetupSession[]> {
   const { data, error } = await supabase
     .from("sessions")
     .select(sessionFields)
+    .eq("user_id", userId)
     .order("session_date", { ascending: false })
     .order("session_time", { ascending: false, nullsFirst: false });
 

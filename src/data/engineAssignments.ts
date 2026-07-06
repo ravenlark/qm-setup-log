@@ -12,10 +12,12 @@ export type EngineAssignment = {
 
 export async function fetchActiveEngineAssignments(
   supabase: SupabaseClient,
+  userId: string,
 ): Promise<EngineAssignment[]> {
   const { data, error } = await supabase
     .from("car_engine_assignments")
     .select("id, user_id, car_id, engine_id, installed_at, removed_at, notes")
+    .eq("user_id", userId)
     .is("removed_at", null)
     .order("installed_at", { ascending: false });
 
