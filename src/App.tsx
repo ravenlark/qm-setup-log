@@ -583,12 +583,11 @@ function HomePage() {
 
       <section className="home-hero">
         <div className="home-hero-copy">
-          <span className="eyebrow">Quarter midget setup tracking</span>
-          <h2>Keep every car, track, engine, and race-day note in one place.</h2>
+          <h2>Keep every car, track, setup, and race-day note in one place.</h2>
           <p>
-            My Setup Log helps teams organize setup changes, maintenance work,
-            track notes, session results, and next-time reminders so the useful
-            details do not disappear after race day.
+            My Setup Log helps race teams organize setup changes, maintenance
+            work, track notes, session results, and next-time reminders so the
+            useful details stay easy to find.
           </p>
           <div className="home-actions">
             <GoogleSignInButton
@@ -625,8 +624,8 @@ function HomePage() {
             </div>
           </div>
           <p>
-            Tight center, better off after RF pressure change. Check tire growth
-            before the next heat.
+            Better drive off after the pressure change. Review tire notes before
+            the next session.
           </p>
         </div>
       </section>
@@ -635,17 +634,17 @@ function HomePage() {
         <div>
           <ClipboardList size={22} />
           <h3>Session history</h3>
-          <p>Capture conditions, setup choices, lap results, and notes.</p>
+          <p>Capture conditions, setup choices, lap times, results, and notes.</p>
         </div>
         <div>
           <Car size={22} />
           <h3>Garage records</h3>
-          <p>Track cars, installed engines, and maintenance reminders.</p>
+          <p>Track cars, engines, maintenance, and equipment details.</p>
         </div>
         <div>
           <MapPinned size={22} />
           <h3>Track memory</h3>
-          <p>Keep facility notes and setup tendencies close at hand.</p>
+          <p>Keep facility notes, setup tendencies, and race-day reminders close at hand.</p>
         </div>
       </section>
 
