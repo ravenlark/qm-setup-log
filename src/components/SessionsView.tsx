@@ -1,12 +1,30 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { Copy, Pencil, Plus, Save, Search, Star, Trash2, X } from "lucide-react";
+import {
+  Bookmark,
+  Copy,
+  Flag,
+  Pencil,
+  Plus,
+  Save,
+  Search,
+  Trash2,
+  X,
+} from "lucide-react";
 import { fetchCars, type RaceCar } from "../data/cars";
 import {
   fetchActiveEngineAssignments,
   type EngineAssignment,
 } from "../data/engineAssignments";
 import { fetchEngines, type EngineWithType } from "../data/engines";
+import {
+  createFavoriteSetup,
+  FAVORITE_SETUPS_CHANGED_EVENT,
+  favoriteSetupToInput,
+  fetchFavoriteSetups,
+  setupInputFromSession,
+  type FavoriteSetup,
+} from "../data/favoriteSetups";
 import {
   createSession,
   deleteSession,
@@ -22,14 +40,16 @@ import {
 import {
   setupFieldsForCarType,
   setupSectionsForCarType,
-  type SetupFieldDefinition,
-  type SetupSectionDefinition,
 } from "../data/setupFields/index";
 import {
   fetchTracksByIds,
   fetchUserTracks,
   type TrackWithNotes,
 } from "../data/tracks";
+import {
+  calculateWeightStats,
+  SetupFieldsEditor,
+} from "./SetupFieldsEditor";
 
 const sessionTypes = ["Practice", "Qualifying", "Heat", "Main"];
 
@@ -114,7 +134,13 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
   const [tracks, setTracks] = useState<TrackWithNotes[]>([]);
   const [assignments, setAssignments] = useState<EngineAssignment[]>([]);
   const [sessions, setSessions] = useState<SetupSession[]>([]);
+  const [favoriteSetups, setFavoriteSetups] = useState<FavoriteSetup[]>([]);
   const [sessionForm, setSessionForm] = useState(emptySessionForm);
+  const [favoriteForm, setFavoriteForm] = useState({
+    name: "",
+    notes: "",
+    session: null as SetupSession | null,
+  });
   const [editingSessionId, setEditingSessionId] = useState("");
   const [expandedSessionId, setExpandedSessionId] = useState("");
   const [sessionFormNotice, setSessionFormNotice] = useState("");
@@ -153,10 +179,14 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
     () => setupSectionsForCarType(selectedCar?.carType?.slug),
     [selectedCar?.carType?.slug],
   );
+  const applicableFavoriteSetups = useMemo(() => {
+    const carTypeId = selectedCar?.car_type_id;
+    if (!carTypeId) return [];
+    return favoriteSetups
+      .filter((setup) => setup.car_type_id === carTypeId)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [favoriteSetups, selectedCar?.car_type_id]);
 
-  const weightStats = useMemo(() => calculateWeightStats(sessionForm), [
-    sessionForm,
-  ]);
   const gearRatio = useMemo(() => {
     const engine = engineById.get(sessionForm.engine_id);
     const engineGear = Number(sessionForm.engine_gear);
@@ -195,6 +225,9 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
     sessionTypeFilter,
     trackById,
   ]);
+  const favoriteSourceCar = favoriteForm.session
+    ? carById.get(favoriteForm.session.car_id)
+    : undefined;
 
   useEffect(() => {
     let isCurrent = true;
@@ -206,6 +239,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
       fetchEngines(supabase),
       fetchActiveEngineAssignments(supabase),
       fetchSessions(supabase),
+      fetchFavoriteSetups(supabase),
       fetchUserTracks(supabase, userId),
     ])
       .then(
@@ -214,6 +248,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
           nextEngines,
           nextAssignments,
           nextSessions,
+          nextFavoriteSetups,
           nextTrackOptions,
         ]) => {
           const nextSessionTracks = await fetchTracksByIds(
@@ -226,15 +261,24 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
             nextAssignments,
             nextCars,
             nextEngines,
+            nextFavoriteSetups,
             nextSessions,
             nextTracks: mergeTracks(nextTrackOptions, nextSessionTracks),
           };
         },
       )
-      .then(({ nextCars, nextEngines, nextTracks, nextAssignments, nextSessions }) => {
+      .then(({
+        nextCars,
+        nextEngines,
+        nextFavoriteSetups,
+        nextTracks,
+        nextAssignments,
+        nextSessions,
+      }) => {
         if (!isCurrent) return;
         setCars(nextCars);
         setEngines(nextEngines);
+        setFavoriteSetups(nextFavoriteSetups);
         setTracks(nextTracks);
         setAssignments(nextAssignments);
         setSessions(nextSessions);
@@ -264,6 +308,38 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
       isCurrent = false;
     };
   }, [supabase, userId]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    function handleFavoriteSetupsChanged(event: Event) {
+      const source = (event as CustomEvent<{ source?: string }>).detail?.source;
+      if (source === "sessions") return;
+
+      fetchFavoriteSetups(supabase)
+        .then((nextFavoriteSetups) => {
+          if (!isCurrent) return;
+          setFavoriteSetups(nextFavoriteSetups);
+        })
+        .catch((error: Error) => {
+          if (!isCurrent) return;
+          setMessage(error.message);
+        });
+    }
+
+    window.addEventListener(
+      FAVORITE_SETUPS_CHANGED_EVENT,
+      handleFavoriteSetupsChanged,
+    );
+
+    return () => {
+      isCurrent = false;
+      window.removeEventListener(
+        FAVORITE_SETUPS_CHANGED_EVENT,
+        handleFavoriteSetupsChanged,
+      );
+    };
+  }, [supabase]);
 
   function updateField(field: SetupSessionInputField, value: string) {
     setSessionForm((current) => ({ ...current, [field]: value }));
@@ -356,6 +432,82 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
     setSessionFormNotice("Session copied into a new entry.");
     setIsSessionModalOpen(true);
     setMessage("Session copied into a new entry.");
+  }
+
+  function handleApplyFavoriteSetup(setupId: string) {
+    const setup = favoriteSetups.find((favorite) => favorite.id === setupId);
+    if (!setup) return;
+
+    setSessionForm((current) => ({
+      ...current,
+      ...favoriteSetupToInput(setup),
+    }));
+    setSessionFormNotice(`Applied favorite setup: ${setup.name}.`);
+  }
+
+  function startSaveFavoriteFromSession(session: SetupSession) {
+    const car = carById.get(session.car_id);
+    if (!car?.car_type_id) {
+      setMessage("Choose a car type before saving a favorite setup.");
+      return;
+    }
+
+    const trackName = trackById.get(session.track_id)?.name;
+    setFavoriteForm({
+      name: [trackName, session.session_type, "setup"].filter(Boolean).join(" "),
+      notes: "",
+      session,
+    });
+    setMessage("");
+  }
+
+  async function handleCreateFavoriteFromSession(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const session = favoriteForm.session;
+    if (!session) return;
+
+    const car = carById.get(session.car_id);
+    if (!car?.car_type_id) {
+      setMessage("Choose a car type before saving a favorite setup.");
+      return;
+    }
+    if (!favoriteForm.name.trim()) {
+      setMessage("Favorite setup name is required.");
+      return;
+    }
+
+    setStatus("saving");
+    setMessage("");
+    try {
+      const saved = await createFavoriteSetup(supabase, userId, {
+        car_type_id: car.car_type_id,
+        name: favoriteForm.name,
+        notes: favoriteForm.notes,
+        setup_values: setupInputFromSession(session),
+        carTypeSlug: car.carType?.slug,
+        source_session_id: session.id,
+      });
+      setFavoriteSetups((current) =>
+        [saved, ...current.filter((setup) => setup.id !== saved.id)].sort(
+          (a, b) => a.name.localeCompare(b.name),
+        ),
+      );
+      window.dispatchEvent(
+        new CustomEvent(FAVORITE_SETUPS_CHANGED_EVENT, {
+          detail: { source: "sessions" },
+        }),
+      );
+      setFavoriteForm({ name: "", notes: "", session: null });
+      setMessage("Favorite setup saved.");
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Favorite setup could not be saved.",
+      );
+    } finally {
+      setStatus("ready");
+    }
   }
 
   async function refreshSessionOptions(preferredTrackId: string) {
@@ -557,6 +709,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
                 onCopy={handleCopySession}
                 onDelete={handleDeleteSession}
                 onEdit={handleEditSession}
+                onSaveFavorite={startSaveFavoriteFromSession}
                 onToggleBaseline={handleToggleBaseline}
                 onToggle={() =>
                   setExpandedSessionId((current) =>
@@ -717,13 +870,37 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
             </div>
           </fieldset>
 
-          <DynamicSetupSections
+          <fieldset className="session-card">
+            <legend>Favorite Setup</legend>
+            <div className="form-grid single">
+              <label>
+                Apply Favorite
+                <select
+                  disabled={!applicableFavoriteSetups.length}
+                  value=""
+                  onChange={(event) => handleApplyFavoriteSetup(event.target.value)}
+                >
+                  <option value="">
+                    {applicableFavoriteSetups.length
+                      ? "Choose favorite setup"
+                      : "No favorites for this car type"}
+                  </option>
+                  {applicableFavoriteSetups.map((setup) => (
+                    <option key={setup.id} value={setup.id}>
+                      {setup.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </fieldset>
+
+          <SetupFieldsEditor
             fieldByKey={setupFieldByKey}
             gearRatio={gearRatio}
             form={sessionForm}
             sections={setupSections}
             showsPositionFields={showsPositionFields}
-            weightStats={weightStats}
             onChange={updateField}
           />
 
@@ -751,31 +928,92 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
       </form>
         </Modal>
       ) : null}
+
+      {favoriteForm.session ? (
+        <Modal
+          eyebrow="Favorite Setup"
+          icon={<Bookmark size={20} />}
+          title={`Save Favorite Setup - ${
+            favoriteSourceCar?.carType?.name ?? "Unknown car type"
+          }`}
+          onClose={() => setFavoriteForm({ name: "", notes: "", session: null })}
+        >
+          <form className="session-form session-modal-form" onSubmit={handleCreateFavoriteFromSession}>
+            <div className="form-panel">
+              <div className="favorite-setup-intro">
+                <p>
+                  Favorite Setups are car-type-specific setup notes you can
+                  recall later and apply to compatible sessions without changing
+                  race results or conditions.
+                </p>
+              </div>
+              <fieldset className="session-card">
+                <legend>Setup Details</legend>
+                <div className="form-grid single">
+                  <label>
+                    Name
+                    <input
+                      required
+                      value={favoriteForm.name}
+                      onChange={(event) =>
+                        setFavoriteForm((current) => ({
+                          ...current,
+                          name: event.target.value,
+                        }))
+                      }
+                      placeholder="Cold weather at Little Wheels"
+                    />
+                  </label>
+                </div>
+                <div className="form-grid notes-grid single">
+                  <label>
+                    Notes
+                    <textarea
+                      value={favoriteForm.notes}
+                      onChange={(event) =>
+                        setFavoriteForm((current) => ({
+                          ...current,
+                          notes: event.target.value,
+                        }))
+                      }
+                      placeholder="When this setup works, track condition, tire reminders"
+                    />
+                  </label>
+                </div>
+              </fieldset>
+              <div className="button-row">
+                <button
+                  className="secondary-button"
+                  disabled={status === "saving"}
+                  type="button"
+                  onClick={() =>
+                    setFavoriteForm({ name: "", notes: "", session: null })
+                  }
+                >
+                  Cancel
+                </button>
+                <button
+                  className="primary-button"
+                  disabled={status === "saving"}
+                  type="submit"
+                >
+                  <Bookmark size={18} />
+                  Save Favorite
+                </button>
+              </div>
+            </div>
+          </form>
+        </Modal>
+      ) : null}
     </section>
   );
 }
 
-type TextFieldProps = {
+type NumberFieldProps = {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
-};
-
-function TextField({ label, value, onChange, placeholder }: TextFieldProps) {
-  return (
-    <label>
-      {label}
-      <input
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
-        placeholder={placeholder}
-      />
-    </label>
-  );
-}
-
-type NumberFieldProps = TextFieldProps & {
   max?: string;
   min?: string;
   required?: boolean;
@@ -811,263 +1049,6 @@ function NumberField({
   );
 }
 
-function CalcStat({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="calc-stat">
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </div>
-  );
-}
-
-function DynamicSetupSections({
-  fieldByKey,
-  form,
-  gearRatio,
-  onChange,
-  sections,
-  showsPositionFields,
-  weightStats,
-}: {
-  fieldByKey: Map<string, SetupFieldDefinition>;
-  form: SetupSessionInput;
-  gearRatio: string;
-  onChange: (field: SetupSessionInputField, value: string) => void;
-  sections: SetupSectionDefinition[];
-  showsPositionFields: boolean;
-  weightStats: ReturnType<typeof calculateWeightStats>;
-}) {
-  return (
-    <>
-      {sections.map((section) => {
-        const blocks = section.blocks
-          .map((block, index) => (
-            <SetupLayoutBlock
-              block={block}
-              fieldByKey={fieldByKey}
-              form={form}
-              gearRatio={gearRatio}
-              key={`${section.id}-${index}`}
-              showsPositionFields={showsPositionFields}
-              weightStats={weightStats}
-              onChange={onChange}
-            />
-          ))
-          .filter(Boolean);
-
-        if (!blocks.length) return null;
-
-        return (
-          <fieldset className="session-card" key={section.id}>
-            <legend>{section.title}</legend>
-            {blocks}
-          </fieldset>
-        );
-      })}
-    </>
-  );
-}
-
-function SetupLayoutBlock({
-  block,
-  fieldByKey,
-  form,
-  gearRatio,
-  onChange,
-  showsPositionFields,
-  weightStats,
-}: {
-  block: SetupSectionDefinition["blocks"][number];
-  fieldByKey: Map<string, SetupFieldDefinition>;
-  form: SetupSessionInput;
-  gearRatio: string;
-  onChange: (field: SetupSessionInputField, value: string) => void;
-  showsPositionFields: boolean;
-  weightStats: ReturnType<typeof calculateWeightStats>;
-}) {
-  if (block.type === "computed") {
-    if (block.computed === "weight_percentages") {
-      return (
-        <div className={block.className ?? "calculated-grid"}>
-          <CalcStat label="Front" value={weightStats.front} />
-          <CalcStat label="Left" value={weightStats.left} />
-          <CalcStat label="Right" value={weightStats.right} />
-          <CalcStat label="Rear" value={weightStats.rear} />
-          <CalcStat label="Cross" value={weightStats.cross} />
-        </div>
-      );
-    }
-
-    return (
-      <div className={block.className ?? "calculated-grid centered"}>
-        <CalcStat label="Calculated Gear Ratio" value={gearRatio} />
-      </div>
-    );
-  }
-
-  if (block.type === "corners") {
-    const corners = block.corners
-      .map(({ corner, fieldKeys }) => {
-        const fields = fieldKeys
-          .map((key) => fieldByKey.get(key))
-          .filter(isVisibleField(showsPositionFields));
-
-        return fields.length ? { corner, fields } : null;
-      })
-      .filter(Boolean) as Array<{
-        corner: string;
-        fields: SetupFieldDefinition[];
-      }>;
-
-    if (!corners.length) return null;
-
-    if (corners.every(({ fields }) => fields.length === 1)) {
-      return (
-        <div className={block.className ?? "corner-grid"}>
-          {corners.flatMap(({ fields }) =>
-            fields.map((field) => (
-              <SetupInputField
-                field={field}
-                key={field.key}
-                value={form[field.key] ?? ""}
-                onChange={(value) => onChange(field.key, value)}
-              />
-            )),
-          )}
-        </div>
-      );
-    }
-
-    return (
-      <div className={block.className ?? "corner-grid"}>
-        {corners.map(({ corner, fields }) => (
-          <div className="corner-box" key={corner}>
-            <h3>{corner.toUpperCase()}</h3>
-            {fields.map((field) => (
-              <SetupInputField
-                field={field}
-                key={field.key}
-                value={form[field.key] ?? ""}
-                onChange={(value) => onChange(field.key, value)}
-              />
-            ))}
-          </div>
-        ))}
-      </div>
-    );
-  }
-
-  const fields = block.fieldKeys
-    .map((key) => fieldByKey.get(key))
-    .filter(isVisibleField(showsPositionFields));
-
-  if (!fields.length) return null;
-
-  return (
-    <div className={block.className ?? "form-grid result-pair-grid"}>
-      {fields.map((field) => (
-        <SetupInputField
-          field={field}
-          key={field.key}
-          value={form[field.key] ?? ""}
-          onChange={(value) => onChange(field.key, value)}
-        />
-      ))}
-    </div>
-  );
-}
-
-function isVisibleField(showsPositionFields: boolean) {
-  return (field: SetupFieldDefinition | undefined): field is SetupFieldDefinition =>
-    Boolean(
-      field &&
-        (showsPositionFields ||
-          (field.key !== "start_position" && field.key !== "end_position")),
-    );
-}
-
-function SetupInputField({
-  field,
-  onChange,
-  value,
-}: {
-  field: SetupFieldDefinition;
-  onChange: (value: string) => void;
-  value: string;
-}) {
-  if (field.type === "textarea") {
-    return (
-      <label>
-        {field.label}
-        <textarea
-          placeholder={field.placeholder}
-          value={value}
-          onChange={(event) => onChange(event.target.value)}
-        />
-      </label>
-    );
-  }
-
-  if (field.type === "radio") {
-    return (
-      <div className="radio-field">
-        <span>{field.label}</span>
-        <div className="segmented-radio" role="radiogroup" aria-label={field.label}>
-          {(field.options ?? []).map((option) => (
-            <label key={option}>
-              <input
-                checked={value === option}
-                name={field.key}
-                type="radio"
-                value={option}
-                onChange={(event) => onChange(event.target.value)}
-              />
-              <span>{option}</span>
-            </label>
-          ))}
-        </div>
-      </div>
-    );
-  }
-
-  if (field.type === "select") {
-    return (
-      <label>
-        {field.label}
-        <select value={value} onChange={(event) => onChange(event.target.value)}>
-          <option value="">Choose option</option>
-          {(field.options ?? []).map((option) => (
-            <option key={option}>{option}</option>
-          ))}
-        </select>
-      </label>
-    );
-  }
-
-  if (field.type === "number" || field.type === "integer") {
-    return (
-      <NumberField
-        label={field.label}
-        max={field.max}
-        min={field.min}
-        placeholder={field.placeholder}
-        step={field.step}
-        value={value}
-        onChange={onChange}
-      />
-    );
-  }
-
-  return (
-    <TextField
-      label={field.label}
-      placeholder={field.placeholder}
-      value={value}
-      onChange={onChange}
-    />
-  );
-}
-
 function SessionHistoryCard({
   carName,
   engine,
@@ -1075,6 +1056,7 @@ function SessionHistoryCard({
   onCopy,
   onDelete,
   onEdit,
+  onSaveFavorite,
   onToggleBaseline,
   onToggle,
   session,
@@ -1087,6 +1069,7 @@ function SessionHistoryCard({
   onCopy: (session: SetupSession) => void;
   onDelete: (session: SetupSession) => void;
   onEdit: (session: SetupSession) => void;
+  onSaveFavorite: (session: SetupSession) => void;
   onToggleBaseline: (session: SetupSession) => void;
   onToggle: () => void;
   session: SetupSession;
@@ -1188,6 +1171,15 @@ function SessionHistoryCard({
               <Copy size={18} />
             </button>
             <button
+              aria-label="Save session as favorite setup"
+              className="icon-button"
+              disabled={status === "saving"}
+              type="button"
+              onClick={() => onSaveFavorite(session)}
+            >
+              <Bookmark size={18} />
+            </button>
+            <button
               aria-label={
                 session.is_baseline
                   ? "Clear session baseline"
@@ -1198,7 +1190,7 @@ function SessionHistoryCard({
               type="button"
               onClick={() => onToggleBaseline(session)}
             >
-              <Star size={18} />
+              <Flag size={18} fill={session.is_baseline ? "currentColor" : "none"} />
             </button>
             <button
               aria-label="Remove session"
@@ -1267,36 +1259,6 @@ function Modal({
       </section>
     </div>
   );
-}
-
-function calculateWeightStats(form: SetupSessionInput) {
-  const lf = Number(form.lf_weight);
-  const rf = Number(form.rf_weight);
-  const lr = Number(form.lr_weight);
-  const rr = Number(form.rr_weight);
-  const total = lf + rf + lr + rr;
-
-  if (!total) {
-    return {
-      front: "--",
-      left: "--",
-      right: "--",
-      rear: "--",
-      cross: "--",
-    };
-  }
-
-  return {
-    front: percent(lf + rf, total),
-    left: percent(lf + lr, total),
-    right: percent(rf + rr, total),
-    rear: percent(lr + rr, total),
-    cross: percent(rf + lr, total),
-  };
-}
-
-function percent(value: number, total: number) {
-  return `${((value / total) * 100).toFixed(1)}%`;
 }
 
 function hasRacePositions(sessionType: string) {

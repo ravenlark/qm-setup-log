@@ -197,6 +197,19 @@ create table public.sessions (
   foreign key (engine_id) references public.engines(id) on delete set null
 );
 
+create table public.favorite_setups (
+  id uuid primary key default gen_random_uuid(),
+  user_id uuid not null references auth.users(id) on delete cascade,
+  car_type_id uuid not null references public.car_types(id) on delete restrict,
+  name text not null,
+  notes text,
+  source_session_id uuid references public.sessions(id) on delete set null,
+  setup_values jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (id, user_id)
+);
+
 create unique index car_engine_assignments_one_active_engine_per_car
   on public.car_engine_assignments (user_id, car_id)
   where removed_at is null;
@@ -264,6 +277,12 @@ create index sessions_user_track_date_idx
 create index sessions_user_car_track_date_idx
   on public.sessions (user_id, car_id, track_id, session_date desc);
 
+create index favorite_setups_user_car_type_name_idx
+  on public.favorite_setups (user_id, car_type_id, name);
+
+create index favorite_setups_source_session_idx
+  on public.favorite_setups (source_session_id);
+
 create trigger profiles_set_updated_at
 before update on public.profiles
 for each row execute function public.set_updated_at();
@@ -316,6 +335,10 @@ create trigger sessions_set_updated_at
 before update on public.sessions
 for each row execute function public.set_updated_at();
 
+create trigger favorite_setups_set_updated_at
+before update on public.favorite_setups
+for each row execute function public.set_updated_at();
+
 alter table public.profiles enable row level security;
 alter table public.subscription_plans enable row level security;
 alter table public.account_subscriptions enable row level security;
@@ -330,6 +353,7 @@ alter table public.engines enable row level security;
 alter table public.car_engine_assignments enable row level security;
 alter table public.engine_maintenance enable row level security;
 alter table public.sessions enable row level security;
+alter table public.favorite_setups enable row level security;
 
 grant usage on schema public to authenticated;
 
@@ -347,6 +371,7 @@ grant select, insert, update, delete on public.engines to authenticated;
 grant select, insert, update, delete on public.car_engine_assignments to authenticated;
 grant select, insert, update, delete on public.engine_maintenance to authenticated;
 grant select, insert, update, delete on public.sessions to authenticated;
+grant select, insert, update, delete on public.favorite_setups to authenticated;
 
 create policy "Users can read their own profile"
   on public.profiles for select
@@ -512,6 +537,29 @@ create policy "Users can manage their own sessions"
       from public.tracks
       where tracks.id = sessions.track_id
         and (tracks.is_system or tracks.created_by = auth.uid())
+    )
+  );
+
+create policy "Users can manage their own favorite setups"
+  on public.favorite_setups for all
+  to authenticated
+  using (auth.uid() = user_id)
+  with check (
+    auth.uid() = user_id
+    and exists (
+      select 1
+      from public.car_types
+      where car_types.id = favorite_setups.car_type_id
+        and car_types.is_active
+    )
+    and (
+      favorite_setups.source_session_id is null
+      or exists (
+        select 1
+        from public.sessions
+        where sessions.id = favorite_setups.source_session_id
+          and sessions.user_id = auth.uid()
+      )
     )
   );
 

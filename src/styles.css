@@ -160,6 +160,40 @@ summary:focus-visible {
   align-items: start;
 }
 
+.favorite-setups-layout {
+  display: grid;
+  gap: var(--space-6);
+}
+
+.favorite-setup-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+  gap: var(--space-5);
+}
+
+.favorite-setup-card {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface-raised);
+}
+
+.favorite-setup-card .garage-card-heading svg {
+  color: var(--color-warning);
+  flex: 0 0 auto;
+}
+
+.favorite-setup-intro {
+  color: var(--color-subtle);
+}
+
+.favorite-setup-intro p {
+  margin: 0;
+  line-height: 1.45;
+}
+
 .profile-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(300px, 0.8fr);

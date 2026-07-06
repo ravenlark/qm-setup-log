@@ -2,11 +2,13 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import type { Session } from "@supabase/supabase-js";
 import {
   BarChart3,
+  Bookmark,
   Car,
   ChevronDown,
   ClipboardList,
   Flag,
   LogOut,
+  MapPinned,
   Menu,
   User,
   X,
@@ -21,6 +23,7 @@ import {
   useParams,
 } from "react-router-dom";
 import { GarageView } from "./components/GarageView";
+import { FavoriteSetupsView } from "./components/FavoriteSetupsView";
 import { GoogleSignInButton } from "./components/GoogleSignInButton";
 import { ProfileView } from "./components/ProfileView";
 import { ReportsView } from "./components/ReportsView";
@@ -31,13 +34,14 @@ import { TracksView } from "./components/TracksView";
 import { ensureAccountSetup, type UserProfile } from "./lib/account";
 import { supabase, supabaseConfig } from "./lib/supabase";
 
-type AppTab = "sessions" | "garage" | "tracks" | "reports";
+type AppTab = "sessions" | "setups" | "garage" | "tracks" | "reports";
 type AppView = AppTab | "profile";
 
 const tabs = [
   { id: "sessions", label: "Sessions", icon: ClipboardList, path: "/app/sessions" },
+  { id: "setups", label: "Setups", icon: Bookmark, path: "/app/setups" },
   { id: "garage", label: "My Garage", icon: Car, path: "/app/garage" },
-  { id: "tracks", label: "Tracks", icon: Flag, path: "/app/tracks" },
+  { id: "tracks", label: "Tracks", icon: MapPinned, path: "/app/tracks" },
   { id: "reports", label: "Reports", icon: BarChart3, path: "/app/reports" },
 ] satisfies Array<{
   id: AppTab;
@@ -48,6 +52,7 @@ const tabs = [
 
 const appViews = new Set<AppView>([
   "sessions",
+  "setups",
   "garage",
   "tracks",
   "reports",
@@ -59,6 +64,11 @@ const comingSoon = {
     eyebrow: "Sessions",
     title: "Sessions need Supabase before they can load.",
     body: "The Sessions tab is ready, but the Supabase client is not configured in this browser session.",
+  },
+  setups: {
+    eyebrow: "Setups",
+    title: "Favorite Setups need Supabase before they can load.",
+    body: "The Setups tab is ready, but the Supabase client is not configured in this browser session.",
   },
   garage: {
     eyebrow: "Garage",
@@ -516,7 +526,7 @@ function HomePage() {
           <p>Track cars, installed engines, and maintenance reminders.</p>
         </div>
         <div>
-          <Flag size={22} />
+          <MapPinned size={22} />
           <h3>Track memory</h3>
           <p>Keep facility notes and setup tendencies close at hand.</p>
         </div>
@@ -690,6 +700,9 @@ function WorkspaceApp() {
       <>
         <div className="tab-panel" hidden={activeView !== "sessions"}>
           <SessionsView supabase={supabase} userId={session.user.id} />
+        </div>
+        <div className="tab-panel" hidden={activeView !== "setups"}>
+          <FavoriteSetupsView supabase={supabase} userId={session.user.id} />
         </div>
         <div className="tab-panel" hidden={activeView !== "garage"}>
           <GarageView supabase={supabase} userId={session.user.id} />
