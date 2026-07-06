@@ -83,7 +83,7 @@ export function ProfileView({
   useEffect(() => {
     let isCurrent = true;
 
-    fetchAccountLimits(supabase)
+    fetchAccountLimits(supabase, { includeLiveBilling: true })
       .then((limits) => {
         if (!isCurrent) return;
         setAccountLimits(limits);

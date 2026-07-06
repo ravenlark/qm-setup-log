@@ -50,50 +50,74 @@ type AccountLimitsRow = {
   can_create_engine_maintenance?: boolean | null;
 };
 
+type FetchAccountLimitsOptions = {
+  includeLiveBilling?: boolean;
+};
+
 export async function fetchAccountLimits(
   supabase: SupabaseClient,
+  options: FetchAccountLimitsOptions = {},
 ): Promise<AccountLimits | null> {
-  return cached("account-limits", 30 * 1000, async () => {
-    const { data, error } = await supabase.rpc("account_plan_limits");
+  const userId = await currentUserCacheKey(supabase);
+  const limits = await cached(
+    `account-limits:${userId}`,
+    3 * 60 * 1000,
+    async () => {
+      const { data, error } = await supabase.rpc("account_plan_limits");
 
-    if (error) return null;
+      if (error) return null;
 
-    const row = Array.isArray(data) ? data[0] : data;
-    if (!row) return null;
+      const row = Array.isArray(data) ? data[0] : data;
+      if (!row) return null;
 
-    const limits = row as AccountLimitsRow;
-    const billingSummary = await fetchBillingSummary(supabase);
-    const features = {
-      ...(limits.features ?? {}),
-      [ACCOUNT_FEATURES.customTracks]:
-        limits.features?.[ACCOUNT_FEATURES.customTracks] ??
-        Boolean(limits.can_create_custom_tracks),
-      [ACCOUNT_FEATURES.engineMaintenance]:
-        limits.features?.[ACCOUNT_FEATURES.engineMaintenance] ??
-        Boolean(limits.can_create_engine_maintenance),
-    };
+      return accountLimitsFromRow(row as AccountLimitsRow);
+    },
+  );
 
-    return {
-      canCreateCar: limits.can_create_car,
-      canCreateEngine: limits.can_create_engine,
-      cancelAtPeriodEnd:
-        billingSummary?.cancelAtPeriodEnd ?? Boolean(limits.cancel_at_period_end),
-      carCount: limits.car_count,
-      currentPeriodEnd:
-        billingSummary?.currentPeriodEnd ?? limits.current_period_end ?? null,
-      engineCount: limits.engine_count,
-      maxCars: limits.max_cars,
-      maxEngines: limits.max_engines,
-      planDisplayName: limits.plan_display_name ?? limits.plan_name,
-      planName: limits.plan_name,
-      provider: limits.provider ?? null,
-      priceCents: billingSummary?.priceCents ?? limits.price_cents ?? null,
-      priceCurrency:
-        billingSummary?.priceCurrency ?? limits.price_currency ?? null,
-      status: limits.status,
-      features,
-    };
-  });
+  if (!limits || !options.includeLiveBilling || limits.provider !== "stripe") {
+    return limits;
+  }
+
+  const billingSummary = await fetchLiveBillingSummary(supabase);
+  if (!billingSummary) return limits;
+
+  return {
+    ...limits,
+    cancelAtPeriodEnd: billingSummary.cancelAtPeriodEnd,
+    currentPeriodEnd: billingSummary.currentPeriodEnd,
+    priceCents: billingSummary.priceCents,
+    priceCurrency: billingSummary.priceCurrency,
+  };
+}
+
+function accountLimitsFromRow(limits: AccountLimitsRow): AccountLimits {
+  const features = {
+    ...(limits.features ?? {}),
+    [ACCOUNT_FEATURES.customTracks]:
+      limits.features?.[ACCOUNT_FEATURES.customTracks] ??
+      Boolean(limits.can_create_custom_tracks),
+    [ACCOUNT_FEATURES.engineMaintenance]:
+      limits.features?.[ACCOUNT_FEATURES.engineMaintenance] ??
+      Boolean(limits.can_create_engine_maintenance),
+  };
+
+  return {
+    canCreateCar: limits.can_create_car,
+    canCreateEngine: limits.can_create_engine,
+    cancelAtPeriodEnd: Boolean(limits.cancel_at_period_end),
+    carCount: limits.car_count,
+    currentPeriodEnd: limits.current_period_end ?? null,
+    engineCount: limits.engine_count,
+    maxCars: limits.max_cars,
+    maxEngines: limits.max_engines,
+    planDisplayName: limits.plan_display_name ?? limits.plan_name,
+    planName: limits.plan_name,
+    provider: limits.provider ?? null,
+    priceCents: limits.price_cents ?? null,
+    priceCurrency: limits.price_currency ?? null,
+    status: limits.status,
+    features,
+  };
 }
 
 export function invalidateAccountLimits() {
@@ -114,34 +138,45 @@ type BillingSummary = {
   priceCurrency: string | null;
 };
 
-async function fetchBillingSummary(
+export async function fetchLiveBillingSummary(
   supabase: SupabaseClient,
 ): Promise<BillingSummary | null> {
-  const { data, error } = await supabase.functions.invoke(
-    "get-billing-summary",
-    { method: "POST" },
-  );
+  const userId = await currentUserCacheKey(supabase);
 
-  if (error || !data || typeof data !== "object") return null;
+  return cached(`live-billing-summary:${userId}`, 60 * 1000, async () => {
+    const { data, error } = await supabase.functions.invoke(
+      "get-billing-summary",
+      { method: "POST" },
+    );
 
-  return {
-    cancelAtPeriodEnd:
-      "cancelAtPeriodEnd" in data && typeof data.cancelAtPeriodEnd === "boolean"
-        ? data.cancelAtPeriodEnd
-        : false,
-    currentPeriodEnd:
-      "currentPeriodEnd" in data && typeof data.currentPeriodEnd === "string"
-        ? data.currentPeriodEnd
-        : null,
-    priceCents:
-      "priceCents" in data && typeof data.priceCents === "number"
-        ? data.priceCents
-        : null,
-    priceCurrency:
-      "priceCurrency" in data && typeof data.priceCurrency === "string"
-        ? data.priceCurrency
-        : null,
-  };
+    if (error || !data || typeof data !== "object") return null;
+
+    return {
+      cancelAtPeriodEnd:
+        "cancelAtPeriodEnd" in data && typeof data.cancelAtPeriodEnd === "boolean"
+          ? data.cancelAtPeriodEnd
+          : false,
+      currentPeriodEnd:
+        "currentPeriodEnd" in data && typeof data.currentPeriodEnd === "string"
+          ? data.currentPeriodEnd
+          : null,
+      priceCents:
+        "priceCents" in data && typeof data.priceCents === "number"
+          ? data.priceCents
+          : null,
+      priceCurrency:
+        "priceCurrency" in data && typeof data.priceCurrency === "string"
+          ? data.priceCurrency
+          : null,
+    };
+  });
+}
+
+async function currentUserCacheKey(supabase: SupabaseClient) {
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  return session?.user.id ?? "anonymous";
 }
 
 export function formatLimitUsage(count: number, limit: number | null) {

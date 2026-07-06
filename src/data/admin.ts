@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { cached, invalidateCache } from "./cache";
 import type {
   CarTypeSetupDefinition,
   SetupFieldDefinition,
@@ -67,11 +68,21 @@ export type AdminSetupTemplate = {
   carType?: AdminCarType | AdminCarType[] | null;
 };
 
+type AdminMe = { email: string | null; isAdmin: boolean };
+
 export async function fetchAdminMe(supabase: SupabaseClient) {
-  return invokeAdmin<{ email: string | null; isAdmin: boolean }>(
-    supabase,
-    "admin-me",
+  const {
+    data: { session },
+  } = await supabase.auth.getSession();
+  const userId = session?.user.id ?? "anonymous";
+
+  return cached(`admin-me:${userId}`, 10 * 60 * 1000, () =>
+    invokeAdmin<AdminMe>(supabase, "admin-me"),
   );
+}
+
+export function invalidateAdminMe() {
+  invalidateCache("admin-me");
 }
 
 export async function fetchAdminUsers(

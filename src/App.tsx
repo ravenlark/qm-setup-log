@@ -34,7 +34,8 @@ import {
 import { GoogleSignInButton } from "./components/GoogleSignInButton";
 import { SiteFooter } from "./components/SiteFooter";
 import { SiteHeader } from "./components/SiteHeader";
-import { fetchAdminMe } from "./data/admin";
+import { fetchAdminMe, invalidateAdminMe } from "./data/admin";
+import { invalidateAccountLimits } from "./data/subscriptions";
 import { ensureAccountSetup, type UserProfile } from "./lib/account";
 import { supabase, supabaseConfig } from "./lib/supabase";
 
@@ -209,7 +210,11 @@ function useAccountHeaderState({
 
       authUserIdRef.current = nextUserId;
       setSession(nextSession);
-      if (userChanged) setProfile(null);
+      if (userChanged) {
+        invalidateAdminMe();
+        invalidateAccountLimits();
+        setProfile(null);
+      }
       setAuthError("");
       setAuthStatus("ready");
       if (!nextSession && redirectOnSignOut) navigate("/", { replace: true });
@@ -271,8 +276,13 @@ function useAccountHeaderState({
     if (!supabase) return;
     setAuthError("");
     const { error } = await supabase.auth.signOut();
-    if (error) setAuthError(error.message);
-    else navigate("/");
+    if (error) {
+      setAuthError(error.message);
+      return;
+    }
+    invalidateAdminMe();
+    invalidateAccountLimits();
+    navigate("/");
   }
 
   return {
