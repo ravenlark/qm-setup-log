@@ -709,7 +709,7 @@ function PricingPage() {
 
         <article className="pricing-card pricing-card-featured">
           <div>
-            <p className="pricing-plan">Senior</p>
+            <p className="pricing-plan">Pro</p>
             <h3>$3.99<span>/month</span></h3>
             <p className="pricing-copy">
               For teams ready to keep deeper setup history and comparisons. Get everything from the Rookie plan PLUS:
@@ -725,7 +725,7 @@ function PricingPage() {
             type="button"
             onClick={() => signIn("/app/profile")}
           >
-            Choose Senior
+            Choose Pro
           </button>
         </article>
       </section>
