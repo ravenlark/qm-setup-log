@@ -4,6 +4,7 @@ import {
   emptyPayloads,
   payloadValueToInput,
   setupFieldsForCarType,
+  type SetupFieldDefinition,
   type SetupFieldValue,
   type SetupValuePayload,
 } from "./setupFields/index";
@@ -92,8 +93,11 @@ export async function createSession(
   userId: string,
   input: SetupSessionInput,
   carTypeSlug?: string | null,
+  setupFields?: SetupFieldDefinition[],
 ): Promise<SetupSession> {
-  const payload = sessionPayload(userId, input, carTypeSlug, { is_baseline: false });
+  const payload = sessionPayload(userId, input, carTypeSlug, {
+    is_baseline: false,
+  }, setupFields);
 
   const { data, error } = await supabase
     .from("sessions")
@@ -111,8 +115,9 @@ export async function updateSession(
   sessionId: string,
   input: SetupSessionInput,
   carTypeSlug?: string | null,
+  setupFields?: SetupFieldDefinition[],
 ): Promise<SetupSession> {
-  const payload = sessionPayload(userId, input, carTypeSlug);
+  const payload = sessionPayload(userId, input, carTypeSlug, {}, setupFields);
 
   const { data, error } = await supabase
     .from("sessions")
@@ -175,9 +180,10 @@ function sessionPayload(
   input: SetupSessionInput,
   carTypeSlug?: string | null,
   extras: Record<string, string | number | null | boolean> = {},
+  setupFields?: SetupFieldDefinition[],
 ) {
   const payloads = emptyPayloads();
-  const fields = setupFieldsForCarType(carTypeSlug);
+  const fields = setupFields ?? setupFieldsForCarType(carTypeSlug);
   const fieldByKey = new Map(fields.map((field) => [field.key, field]));
 
   const payload: Record<

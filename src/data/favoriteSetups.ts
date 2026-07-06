@@ -3,6 +3,7 @@ import {
   coerceFieldValue,
   payloadValueToInput,
   setupFieldsForCarType,
+  type SetupFieldDefinition,
   type SetupValuePayload,
 } from "./setupFields/index";
 import type { CarType } from "./cars";
@@ -27,6 +28,7 @@ export type FavoriteSetupInput = {
   notes: string;
   setup_values: SetupSessionInput;
   carTypeSlug?: string | null;
+  setupFields?: SetupFieldDefinition[];
   source_session_id?: string | null;
 };
 
@@ -119,7 +121,11 @@ function favoriteSetupPayload(
     name: input.name.trim(),
     notes: cleanOptional(input.notes),
     source_session_id: input.source_session_id ?? null,
-    setup_values: setupPayload(input.setup_values, input.carTypeSlug),
+    setup_values: setupPayload(
+      input.setup_values,
+      input.carTypeSlug,
+      input.setupFields,
+    ),
   };
 
   if (userId) payload.user_id = userId;
@@ -130,9 +136,10 @@ function favoriteSetupPayload(
 function setupPayload(
   input: SetupSessionInput,
   carTypeSlug?: string | null,
+  setupFields?: SetupFieldDefinition[],
 ): SetupValuePayload {
   const payload: SetupValuePayload = {};
-  const fields = setupFieldsForCarType(carTypeSlug);
+  const fields = setupFields ?? setupFieldsForCarType(carTypeSlug);
   const fieldByKey = new Map(fields.map((field) => [field.key, field]));
 
   for (const [field, value] of Object.entries(input)) {

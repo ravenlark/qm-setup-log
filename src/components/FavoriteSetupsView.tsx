@@ -18,7 +18,12 @@ import {
   updateFavoriteSetup,
   type FavoriteSetup,
 } from "../data/favoriteSetups";
-import { setupFieldsForCarType, setupSectionsForCarType } from "../data/setupFields/index";
+import {
+  fetchRuntimeSetupDefinitions,
+  setupFieldsForCarTypeWithRuntime,
+  setupSectionsForCarTypeWithRuntime,
+  type RuntimeSetupDefinitionMap,
+} from "../data/setupFields/runtime";
 import type { SetupSessionInput, SetupSessionInputField } from "../data/sessions";
 import {
   calculateWeightStats,
@@ -42,6 +47,8 @@ type FavoriteSetupsViewProps = {
 export function FavoriteSetupsView({ supabase, userId }: FavoriteSetupsViewProps) {
   const [carTypes, setCarTypes] = useState<CarType[]>([]);
   const [favoriteSetups, setFavoriteSetups] = useState<FavoriteSetup[]>([]);
+  const [setupDefinitions, setSetupDefinitions] =
+    useState<RuntimeSetupDefinitionMap>({});
   const [favoriteForm, setFavoriteForm] =
     useState<FavoriteSetupForm>(emptyFavoriteForm);
   const [editingFavoriteId, setEditingFavoriteId] = useState("");
@@ -64,8 +71,9 @@ export function FavoriteSetupsView({ supabase, userId }: FavoriteSetupsViewProps
   );
   const selectedCarType = carTypeById.get(favoriteForm.car_type_id);
   const setupFieldDefinitions = useMemo(
-    () => setupFieldsForCarType(selectedCarType?.slug),
-    [selectedCarType?.slug],
+    () =>
+      setupFieldsForCarTypeWithRuntime(selectedCarType?.slug, setupDefinitions),
+    [selectedCarType?.slug, setupDefinitions],
   );
   const setupFieldByKey = useMemo(
     () => new Map(setupFieldDefinitions.map((field) => [field.key, field])),
@@ -73,10 +81,13 @@ export function FavoriteSetupsView({ supabase, userId }: FavoriteSetupsViewProps
   );
   const setupSections = useMemo(
     () =>
-      setupSectionsForCarType(selectedCarType?.slug).filter(
+      setupSectionsForCarTypeWithRuntime(
+        selectedCarType?.slug,
+        setupDefinitions,
+      ).filter(
         (section) => section.id !== "result" && section.id !== "notes",
       ),
-    [selectedCarType?.slug],
+    [selectedCarType?.slug, setupDefinitions],
   );
   const visibleSetups = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -105,11 +116,16 @@ export function FavoriteSetupsView({ supabase, userId }: FavoriteSetupsViewProps
     setStatus("loading");
     setMessage("");
 
-    Promise.all([fetchCarTypes(supabase), fetchFavoriteSetups(supabase, userId)])
-      .then(([nextCarTypes, nextSetups]) => {
+    Promise.all([
+      fetchCarTypes(supabase),
+      fetchFavoriteSetups(supabase, userId),
+      fetchRuntimeSetupDefinitions(supabase),
+    ])
+      .then(([nextCarTypes, nextSetups, nextSetupDefinitions]) => {
         if (!isCurrent) return;
         setCarTypes(nextCarTypes);
         setFavoriteSetups(nextSetups);
+        setSetupDefinitions(nextSetupDefinitions);
         setFavoriteForm((current) => ({
           ...current,
           car_type_id: current.car_type_id || nextCarTypes[0]?.id || "",
@@ -217,6 +233,7 @@ export function FavoriteSetupsView({ supabase, userId }: FavoriteSetupsViewProps
       const input = {
         ...favoriteForm,
         carTypeSlug: carType.slug,
+        setupFields: setupFieldDefinitions,
       };
       const saved = editingFavoriteId
         ? await updateFavoriteSetup(supabase, editingFavoriteId, input)

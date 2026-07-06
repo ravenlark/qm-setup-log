@@ -38,9 +38,19 @@ import {
   updateSession,
 } from "../data/sessions";
 import {
-  setupFieldsForCarType,
-  setupSectionsForCarType,
-} from "../data/setupFields/index";
+  fetchRuntimeSetupDefinitions,
+  setupFieldsForCarTypeWithRuntime,
+  setupSectionsForCarTypeWithRuntime,
+  type RuntimeSetupDefinitionMap,
+} from "../data/setupFields/runtime";
+import {
+  sessionOutcomeFields,
+  sessionOutcomeSections,
+} from "../data/setupFields/sessionOutcome";
+import type {
+  SetupFieldDefinition,
+  SetupSectionDefinition,
+} from "../data/setupFields/types";
 import {
   fetchTracksByIds,
   fetchUserTracks,
@@ -135,6 +145,8 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
   const [assignments, setAssignments] = useState<EngineAssignment[]>([]);
   const [sessions, setSessions] = useState<SetupSession[]>([]);
   const [favoriteSetups, setFavoriteSetups] = useState<FavoriteSetup[]>([]);
+  const [setupDefinitions, setSetupDefinitions] =
+    useState<RuntimeSetupDefinitionMap>({});
   const [sessionForm, setSessionForm] = useState(emptySessionForm);
   const [favoriteForm, setFavoriteForm] = useState({
     name: "",
@@ -168,16 +180,28 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
   const trackOptions = useMemo(() => selectableTracks(tracks), [tracks]);
   const selectedCar = carById.get(sessionForm.car_id);
   const setupFieldDefinitions = useMemo(
-    () => setupFieldsForCarType(selectedCar?.carType?.slug),
-    [selectedCar?.carType?.slug],
+    () => {
+      const templateFields = setupFieldsForCarTypeWithRuntime(
+        selectedCar?.carType?.slug,
+        setupDefinitions,
+      );
+      return mergeSessionOutcomeFields(templateFields);
+    },
+    [selectedCar?.carType?.slug, setupDefinitions],
   );
   const setupFieldByKey = useMemo(
     () => new Map(setupFieldDefinitions.map((field) => [field.key, field])),
     [setupFieldDefinitions],
   );
   const setupSections = useMemo(
-    () => setupSectionsForCarType(selectedCar?.carType?.slug),
-    [selectedCar?.carType?.slug],
+    () => {
+      const templateSections = setupSectionsForCarTypeWithRuntime(
+        selectedCar?.carType?.slug,
+        setupDefinitions,
+      );
+      return mergeSessionOutcomeSections(templateSections);
+    },
+    [selectedCar?.carType?.slug, setupDefinitions],
   );
   const applicableFavoriteSetups = useMemo(() => {
     const carTypeId = selectedCar?.car_type_id;
@@ -241,6 +265,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
       fetchSessions(supabase, userId),
       fetchFavoriteSetups(supabase, userId),
       fetchUserTracks(supabase, userId),
+      fetchRuntimeSetupDefinitions(supabase),
     ])
       .then(
         async ([
@@ -250,6 +275,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
           nextSessions,
           nextFavoriteSetups,
           nextTrackOptions,
+          nextSetupDefinitions,
         ]) => {
           const nextSessionTracks = await fetchTracksByIds(
             supabase,
@@ -263,6 +289,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
             nextEngines,
             nextFavoriteSetups,
             nextSessions,
+            nextSetupDefinitions,
             nextTracks: mergeTracks(nextTrackOptions, nextSessionTracks),
           };
         },
@@ -274,6 +301,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
         nextTracks,
         nextAssignments,
         nextSessions,
+        nextSetupDefinitions,
       }) => {
         if (!isCurrent) return;
         setCars(nextCars);
@@ -282,6 +310,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
         setTracks(nextTracks);
         setAssignments(nextAssignments);
         setSessions(nextSessions);
+        setSetupDefinitions(nextSetupDefinitions);
         setSessionForm((current) => {
           const carId = current.car_id || nextCars[0]?.id || "";
           const engineId =
@@ -386,12 +415,14 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
             editingSessionId,
             sessionForm,
             selectedCar?.carType?.slug,
+            setupFieldDefinitions,
           )
         : await createSession(
             supabase,
             userId,
             sessionForm,
             selectedCar?.carType?.slug,
+            setupFieldDefinitions,
           );
       setSessions((current) =>
         [saved, ...current.filter((session) => session.id !== saved.id)].sort(
@@ -485,6 +516,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
         notes: favoriteForm.notes,
         setup_values: setupInputFromSession(session),
         carTypeSlug: car.carType?.slug,
+        setupFields: setupFieldDefinitions,
         source_session_id: session.id,
       });
       setFavoriteSetups((current) =>
@@ -1263,6 +1295,57 @@ function Modal({
 
 function hasRacePositions(sessionType: string) {
   return sessionType === "Heat" || sessionType === "Main";
+}
+
+function mergeSessionOutcomeFields(fields: SetupFieldDefinition[]) {
+  const fieldsByKey = new Map(fields.map((field) => [field.key, field]));
+  for (const field of sessionOutcomeFields) {
+    if (!fieldsByKey.has(field.key)) {
+      fieldsByKey.set(field.key, field);
+    }
+  }
+  return Array.from(fieldsByKey.values());
+}
+
+function mergeSessionOutcomeSections(sections: SetupSectionDefinition[]) {
+  const hasResultSection = sections.some((section) =>
+    section.blocks.some((block) =>
+      block.type === "fields"
+        ? block.fieldKeys.some((fieldKey) =>
+            sessionOutcomeFields.some(
+              (field) => field.scope === "result_values" && field.key === fieldKey,
+            ),
+          )
+        : block.type === "corners" &&
+          block.corners.some((corner) =>
+            corner.fieldKeys.some((fieldKey) =>
+              sessionOutcomeFields.some(
+                (field) => field.scope === "result_values" && field.key === fieldKey,
+              ),
+            ),
+          ),
+    ),
+  );
+  const hasNotesSection = sections.some((section) =>
+    section.blocks.some(
+      (block) =>
+        block.type === "fields" &&
+        block.fieldKeys.some((fieldKey) =>
+          sessionOutcomeFields.some(
+            (field) => field.scope === "note_values" && field.key === fieldKey,
+          ),
+        ),
+    ),
+  );
+
+  return [
+    ...sections,
+    ...sessionOutcomeSections.filter((section) => {
+      if (section.id === "session_result") return !hasResultSection;
+      if (section.id === "session_notes") return !hasNotesSection;
+      return true;
+    }),
+  ];
 }
 
 function sortSessions(a: SetupSession, b: SetupSession) {

@@ -18,6 +18,7 @@ import {
   LogOut,
   MapPinned,
   Menu,
+  Shield,
   User,
   X,
 } from "lucide-react";
@@ -33,6 +34,7 @@ import {
 import { GoogleSignInButton } from "./components/GoogleSignInButton";
 import { SiteFooter } from "./components/SiteFooter";
 import { SiteHeader } from "./components/SiteHeader";
+import { fetchAdminMe } from "./data/admin";
 import { ensureAccountSetup, type UserProfile } from "./lib/account";
 import { supabase, supabaseConfig } from "./lib/supabase";
 
@@ -117,6 +119,11 @@ const ReportsView = lazy(() =>
 const ProfileView = lazy(() =>
   import("./components/ProfileView").then((module) => ({
     default: module.ProfileView,
+  })),
+);
+const AdminView = lazy(() =>
+  import("./components/AdminView").then((module) => ({
+    default: module.AdminView,
   })),
 );
 
@@ -304,12 +311,33 @@ function AuthHeaderActions({
 }) {
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
   const userId = session?.user.id ?? null;
 
   useEffect(() => {
     setAccountMenuOpen(false);
     setMobileMenuOpen(false);
+    setIsAdmin(false);
   }, [userId]);
+
+  useEffect(() => {
+    let isCurrent = true;
+    if (!supabase || !session) return;
+
+    fetchAdminMe(supabase)
+      .then((result) => {
+        if (!isCurrent) return;
+        setIsAdmin(result.isAdmin);
+      })
+      .catch(() => {
+        if (!isCurrent) return;
+        setIsAdmin(false);
+      });
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [session]);
 
   function openProfile() {
     setAccountMenuOpen(false);
@@ -356,6 +384,7 @@ function AuthHeaderActions({
           </button>
           {accountMenuOpen ? (
             <AccountMenuContent
+              isAdmin={isAdmin}
               teamLabel={teamLabel}
               userLabel={userLabel}
               onProfile={openProfile}
@@ -379,6 +408,7 @@ function AuthHeaderActions({
       {mobileMenuOpen ? (
         <div className="mobile-account-menu">
           <AccountMenuContent
+            isAdmin={isAdmin}
             teamLabel={teamLabel}
             userLabel={userLabel}
             onProfile={openProfile}
@@ -437,10 +467,54 @@ export function App() {
       <Route path="/" element={<HomePage />} />
       <Route path="/app" element={<Navigate to="/app/sessions" replace />} />
       <Route path="/app/:workspaceView" element={<WorkspaceApp />} />
+      <Route path="/admin/*" element={<AdminPage />} />
       <Route path="/pricing" element={<PricingPage />} />
       <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
+  );
+}
+
+function AdminPage() {
+  const accountHeader = useAccountHeaderState({ redirectOnSignOut: true });
+  const isSupabaseConfigured = Boolean(
+    supabaseConfig.url && supabaseConfig.publishableKey,
+  );
+
+  if (accountHeader.authStatus === "loading") {
+    return (
+      <main className="app-shell admin-shell">
+        <LoadingPanel message="Checking session..." />
+      </main>
+    );
+  }
+
+  if (!accountHeader.session) {
+    return <Navigate to="/" replace />;
+  }
+
+  return (
+    <main className="app-shell admin-shell">
+      <PageHeader
+        accountHeader={accountHeader}
+        brandHref="/app/sessions"
+        isSupabaseConfigured={isSupabaseConfigured}
+        onSignIn={() => undefined}
+        showUnauthenticatedSignIn={false}
+      />
+      <Suspense fallback={<LoadingPanel message="Loading admin..." />}>
+        {supabase ? (
+          <AdminView supabase={supabase} />
+        ) : (
+          <IntroPanel
+            eyebrow="Admin"
+            title="Supabase is required for admin."
+            body="Configure Supabase before opening the admin console."
+          />
+        )}
+      </Suspense>
+      <SiteFooter />
+    </main>
   );
 }
 
@@ -1191,11 +1265,13 @@ function NotFoundPage({ showSignIn = true }: { showSignIn?: boolean }) {
 }
 
 function AccountMenuContent({
+  isAdmin,
   onProfile,
   onSignOut,
   teamLabel,
   userLabel,
 }: {
+  isAdmin: boolean;
   onProfile: () => void;
   onSignOut: () => void;
   teamLabel: string;
@@ -1211,6 +1287,12 @@ function AccountMenuContent({
         <User size={17} />
         Profile
       </button>
+      {isAdmin ? (
+        <Link to="/admin/users">
+          <Shield size={17} />
+          Admin
+        </Link>
+      ) : null}
       <button type="button" onClick={onSignOut}>
         <LogOut size={17} />
         Log Out

@@ -8,9 +8,13 @@ import {
   type SetupSession,
 } from "../data/sessions";
 import {
-  setupFieldsForCarType,
   type SetupFieldDefinition,
 } from "../data/setupFields/index";
+import {
+  fetchRuntimeSetupDefinitions,
+  setupFieldsForCarTypeWithRuntime,
+  type RuntimeSetupDefinitionMap,
+} from "../data/setupFields/runtime";
 import { fetchTracksByIds, type TrackWithNotes } from "../data/tracks";
 
 type ReportsViewProps = {
@@ -50,6 +54,8 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
   const [engines, setEngines] = useState<EngineWithType[]>([]);
   const [tracks, setTracks] = useState<TrackWithNotes[]>([]);
   const [sessions, setSessions] = useState<SetupSession[]>([]);
+  const [setupDefinitions, setSetupDefinitions] =
+    useState<RuntimeSetupDefinitionMap>({});
   const [selectedCarId, setSelectedCarId] = useState("");
   const [runAId, setRunAId] = useState("");
   const [runBId, setRunBId] = useState("");
@@ -76,8 +82,12 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
   const runB = sessionsForCar.find((session) => session.id === runBId) ?? null;
   const selectedCar = carById.get(selectedCarId);
   const carTypeFields = useMemo(
-    () => setupFieldsForCarType(selectedCar?.carType?.slug),
-    [selectedCar?.carType?.slug],
+    () =>
+      setupFieldsForCarTypeWithRuntime(
+        selectedCar?.carType?.slug,
+        setupDefinitions,
+      ),
+    [selectedCar?.carType?.slug, setupDefinitions],
   );
   const setupFields = useMemo(() => buildDynamicDiffFields(carTypeFields, "Setup"), [
     carTypeFields,
@@ -117,22 +127,41 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
       fetchCars(supabase, userId),
       fetchEngines(supabase, userId),
       fetchSessions(supabase, userId),
+      fetchRuntimeSetupDefinitions(supabase),
     ])
-      .then(async ([nextCars, nextEngines, nextSessions]) => {
+      .then(async ([
+        nextCars,
+        nextEngines,
+        nextSessions,
+        nextSetupDefinitions,
+      ]) => {
         const nextTracks = await fetchTracksByIds(
           supabase,
           userId,
           uniqueSessionTrackIds(nextSessions),
           { includeArchived: true },
         );
-        return { nextCars, nextEngines, nextSessions, nextTracks };
+        return {
+          nextCars,
+          nextEngines,
+          nextSessions,
+          nextSetupDefinitions,
+          nextTracks,
+        };
       })
-      .then(({ nextCars, nextEngines, nextTracks, nextSessions }) => {
+      .then(({
+        nextCars,
+        nextEngines,
+        nextTracks,
+        nextSessions,
+        nextSetupDefinitions,
+      }) => {
         if (!isCurrent) return;
         setCars(nextCars);
         setEngines(nextEngines);
         setTracks(nextTracks);
         setSessions(nextSessions);
+        setSetupDefinitions(nextSetupDefinitions);
 
         const initialCarId = nextCars[0]?.id ?? "";
         const initialSessions = nextSessions.filter(
