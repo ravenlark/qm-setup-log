@@ -8,3 +8,4 @@ dist/
 vite-dev*.log
 supabase/.temp/
 supabase/supabase/.temp/
+supabase/snippets/

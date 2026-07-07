@@ -1,0 +1,2 @@
+-- Optional local seed data.
+-- Keep this file safe to commit. Use seed.remote.sql for private remote dumps.

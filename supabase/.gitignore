@@ -1,0 +1,13 @@
+# Supabase
+.branches
+.temp
+.env
+
+# dotenvx
+.env.keys
+.env.local
+.env.*.local
+
+# Local-only data dumps can contain production/customer data.
+seed.remote.sql
+*.remote.sql
