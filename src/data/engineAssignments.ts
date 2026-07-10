@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+export const GARAGE_CHANGED_EVENT = "garage:changed";
+
 export type EngineAssignment = {
   id: string;
   user_id: string;

@@ -4,6 +4,7 @@ import { fetchCars, type RaceCar } from "../data/cars";
 import { fetchEngines, type EngineWithType } from "../data/engines";
 import {
   fetchSessions,
+  SESSIONS_CHANGED_EVENT,
   sessionPayloadValue,
   type SetupSession,
 } from "../data/sessions";
@@ -182,6 +183,60 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
       isCurrent = false;
     };
   }, [supabase, userId]);
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    function handleSessionsChanged() {
+      refreshReportSessions().catch((error: Error) => {
+        if (!isCurrent) return;
+        setMessage(error.message);
+      });
+    }
+
+    async function refreshReportSessions() {
+      const nextSessions = await fetchSessions(supabase, userId);
+      const nextTracks = await fetchTracksByIds(
+        supabase,
+        userId,
+        uniqueSessionTrackIds(nextSessions),
+        { includeArchived: true },
+      );
+      if (!isCurrent) return;
+
+      setTracks(nextTracks);
+      setSessions(nextSessions);
+      setSelectedCarId((currentCarId) => {
+        const carId =
+          currentCarId && nextSessions.some((session) => session.car_id === currentCarId)
+            ? currentCarId
+            : nextSessions[0]?.car_id ?? cars[0]?.id ?? "";
+        const nextSessionsForCar = nextSessions.filter(
+          (session) => session.car_id === carId,
+        );
+
+        setRunAId((currentRunAId) =>
+          nextSessionsForCar.some((session) => session.id === currentRunAId)
+            ? currentRunAId
+            : nextSessionsForCar[0]?.id ?? "",
+        );
+        setRunBId((currentRunBId) =>
+          nextSessionsForCar.some((session) => session.id === currentRunBId)
+            ? currentRunBId
+            : nextSessionsForCar[1]?.id ?? nextSessionsForCar[0]?.id ?? "",
+        );
+
+        return carId;
+      });
+    }
+
+    window.addEventListener(SESSIONS_CHANGED_EVENT, handleSessionsChanged);
+
+    return () => {
+      isCurrent = false;
+      window.removeEventListener(SESSIONS_CHANGED_EVENT, handleSessionsChanged);
+    };
+  }, [cars, supabase, userId]);
 
   function updateSelectedCar(carId: string) {
     const nextSessions = sessions.filter((session) => session.car_id === carId);
@@ -420,6 +475,7 @@ function sessionLabel(
     formatDateTime(session),
     session.session_type,
     trackById.get(session.track_id)?.name ?? "Unknown track",
+    session.is_baseline ? "(Baseline)" : "",
   ]
     .filter(Boolean)
     .join(" - ");

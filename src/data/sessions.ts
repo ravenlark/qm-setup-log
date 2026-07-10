@@ -9,6 +9,8 @@ import {
   type SetupValuePayload,
 } from "./setupFields/index";
 
+export const SESSIONS_CHANGED_EVENT = "sessions:changed";
+
 export type SetupSession = {
   id: string;
   user_id: string;

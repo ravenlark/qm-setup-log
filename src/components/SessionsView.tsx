@@ -14,6 +14,7 @@ import {
 import { fetchCars, type RaceCar } from "../data/cars";
 import {
   fetchActiveEngineAssignments,
+  GARAGE_CHANGED_EVENT,
   type EngineAssignment,
 } from "../data/engineAssignments";
 import { fetchEngines, type EngineWithType } from "../data/engines";
@@ -29,6 +30,7 @@ import {
   createSession,
   deleteSession,
   fetchSessions,
+  SESSIONS_CHANGED_EVENT,
   sessionPayloadValue,
   sessionValueForInput,
   type SetupSession,
@@ -370,6 +372,52 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
     };
   }, [supabase, userId]);
 
+  useEffect(() => {
+    let isCurrent = true;
+
+    function handleGarageChanged() {
+      Promise.all([
+        fetchCars(supabase, userId),
+        fetchEngines(supabase, userId),
+        fetchActiveEngineAssignments(supabase, userId),
+      ])
+        .then(([nextCars, nextEngines, nextAssignments]) => {
+          if (!isCurrent) return;
+          setCars(nextCars);
+          setEngines(nextEngines);
+          setAssignments(nextAssignments);
+          setSessionForm((current) => {
+            const carId = nextCars.some((car) => car.id === current.car_id)
+              ? current.car_id
+              : nextCars[0]?.id ?? "";
+            const engineId = nextEngines.some(
+              (engine) => engine.id === current.engine_id,
+            )
+              ? current.engine_id
+              : nextAssignments.find((assignment) => assignment.car_id === carId)
+                  ?.engine_id ?? "";
+
+            return {
+              ...current,
+              car_id: carId,
+              engine_id: engineId,
+            };
+          });
+        })
+        .catch((error: Error) => {
+          if (!isCurrent) return;
+          setMessage(error.message);
+        });
+    }
+
+    window.addEventListener(GARAGE_CHANGED_EVENT, handleGarageChanged);
+
+    return () => {
+      isCurrent = false;
+      window.removeEventListener(GARAGE_CHANGED_EVENT, handleGarageChanged);
+    };
+  }, [supabase, userId]);
+
   function updateField(field: SetupSessionInputField, value: string) {
     setSessionForm((current) => ({ ...current, [field]: value }));
   }
@@ -439,6 +487,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
         track_id: sessionForm.track_id,
         driver: sessionForm.driver,
       });
+      dispatchSessionsChanged();
       setMessage(editingSessionId ? "Session updated." : "Session saved.");
     } catch (error) {
       setMessage(
@@ -459,7 +508,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
 
   function handleCopySession(session: SetupSession) {
     setEditingSessionId("");
-    setSessionForm(sessionToInput(session));
+    setSessionForm(sessionToCopiedSetupInput(session));
     setSessionFormNotice("Session copied into a new entry.");
     setIsSessionModalOpen(true);
     setMessage("Session copied into a new entry.");
@@ -543,12 +592,14 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
   }
 
   async function refreshSessionOptions(preferredTrackId: string) {
-    const [nextCars, nextAssignments, nextTracks] = await Promise.all([
+    const [nextCars, nextEngines, nextAssignments, nextTracks] = await Promise.all([
       fetchCars(supabase, userId),
+      fetchEngines(supabase, userId),
       fetchActiveEngineAssignments(supabase, userId),
       fetchUserTracks(supabase, userId),
     ]);
     setCars(nextCars);
+    setEngines(nextEngines);
     setAssignments(nextAssignments);
     setTracks((current) => mergeTracks(current, nextTracks));
 
@@ -627,6 +678,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
           })
           .sort(sortSessions),
       );
+      dispatchSessionsChanged();
       setMessage(baseline.is_baseline ? "Baseline set." : "Baseline cleared.");
     } catch (error) {
       setMessage(
@@ -652,6 +704,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
       setSessions((current) => current.filter((item) => item.id !== session.id));
       if (editingSessionId === session.id) closeSessionModal();
       if (expandedSessionId === session.id) setExpandedSessionId("");
+      dispatchSessionsChanged();
       setMessage("Session removed.");
     } catch (error) {
       setMessage(
@@ -848,7 +901,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
 
           <fieldset className="session-card">
             <legend>Conditions</legend>
-            <div className="form-grid result-pair-grid">
+            <div className="form-grid result-pair-grid date-time-grid">
               <NumberField
                 label="Date"
                 type="date"
@@ -1380,6 +1433,23 @@ function sessionToInput(session: SetupSession): SetupSessionInput {
   return input;
 }
 
+function sessionToCopiedSetupInput(session: SetupSession): SetupSessionInput {
+  const input: SetupSessionInput = {
+    ...emptySessionForm,
+    session_date: localDateValue(),
+    car_id: session.car_id,
+    engine_id: session.engine_id ?? "",
+    track_id: session.track_id,
+    driver: session.driver ?? "",
+  };
+
+  for (const field of Object.keys(session.setup_values ?? {})) {
+    input[field] = sessionValueForInput(session, field);
+  }
+
+  return input;
+}
+
 function localDateValue(date = new Date()) {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -1406,7 +1476,14 @@ function formatDate(value: string) {
 }
 
 function formatShortTime(value: string | null) {
-  return value ? value.slice(0, 5) : "";
+  if (!value) return "";
+  const [hours = "0", minutes = "0"] = value.split(":");
+  const date = new Date();
+  date.setHours(Number(hours), Number(minutes), 0, 0);
+  return date.toLocaleTimeString(undefined, {
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 function formatOptionalNumber(value: number | null, digits: number) {
@@ -1501,4 +1578,8 @@ function formatSessionGear(
 
   const ratio = ((axleGear / engineGear) * gearboxRatio).toFixed(2);
   return `${combo} (${ratio})`;
+}
+
+function dispatchSessionsChanged() {
+  window.dispatchEvent(new CustomEvent(SESSIONS_CHANGED_EVENT));
 }

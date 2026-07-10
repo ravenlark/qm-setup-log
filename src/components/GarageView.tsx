@@ -12,7 +12,10 @@ import {
   type RaceCarInput,
 } from "../data/cars";
 import {
+  assignEngineToCar,
   fetchActiveEngineAssignments,
+  GARAGE_CHANGED_EVENT,
+  removeEngineAssignment,
   type EngineAssignment,
 } from "../data/engineAssignments";
 import {
@@ -101,6 +104,7 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
   const [editingMaintenanceId, setEditingMaintenanceId] = useState("");
   const [activeModal, setActiveModal] = useState<GarageModal>(null);
   const [maintenanceEngineId, setMaintenanceEngineId] = useState("");
+  const [carEngineId, setCarEngineId] = useState("");
   const [carForm, setCarForm] = useState(emptyCarForm);
   const [engineForm, setEngineForm] = useState(emptyEngineForm);
   const [maintenanceForm, setMaintenanceForm] = useState(emptyMaintenanceForm);
@@ -254,6 +258,7 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
       ...emptyCarForm,
       car_type_id: carTypes[0]?.id || "",
     });
+    setCarEngineId("");
     setMessage("");
     setActiveModal("car");
   }
@@ -267,12 +272,17 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
       year: car.year === null ? "" : String(car.year),
       notes: car.notes ?? "",
     });
+    setCarEngineId(
+      engineAssignments.find((assignment) => assignment.car_id === car.id)
+        ?.engine_id ?? "",
+    );
     setMessage("");
     setActiveModal("car");
   }
 
   function resetCarForm() {
     setEditingCarId("");
+    setCarEngineId("");
     setCarForm(emptyCarForm);
     setActiveModal((current) => (current === "car" ? null : current));
   }
@@ -380,7 +390,9 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
           ? { ...current, carCount: current.carCount + 1 }
           : current,
       );
+      await syncEngineAssignment(saved.id, carEngineId);
       if (!editingCarId) invalidateAccountLimits();
+      dispatchGarageChanged();
       resetCarForm();
       setMessage(editingCarId ? "Car updated." : "Car added.");
     } catch (error) {
@@ -408,6 +420,7 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
       setEngineAssignments((current) =>
         current.filter((assignment) => assignment.car_id !== car.id),
       );
+      dispatchGarageChanged();
       if (editingCarId === car.id) resetCarForm();
       setMessage("Car removed.");
     } catch (error) {
@@ -450,6 +463,7 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
           : current,
       );
       if (!editingEngineId) invalidateAccountLimits();
+      dispatchGarageChanged();
       resetEngineForm();
       setMessage(editingEngineId ? "Engine updated." : "Engine added.");
     } catch (error) {
@@ -482,6 +496,7 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
       setMaintenanceEntries((current) =>
         current.filter((entry) => entry.engine_id !== engine.id),
       );
+      dispatchGarageChanged();
       if (editingEngineId === engine.id) resetEngineForm();
       setMessage("Engine removed.");
     } catch (error) {
@@ -575,6 +590,36 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
     } finally {
       setStatus("ready");
     }
+  }
+
+  async function syncEngineAssignment(carId: string, engineId: string) {
+    const currentAssignment = engineAssignments.find(
+      (assignment) => assignment.car_id === carId,
+    );
+
+    if (currentAssignment?.engine_id === engineId) return;
+
+    if (!engineId) {
+      if (!currentAssignment) return;
+
+      await removeEngineAssignment(supabase, currentAssignment.id);
+      setEngineAssignments((current) =>
+        current.filter((assignment) => assignment.id !== currentAssignment.id),
+      );
+      dispatchGarageChanged();
+      return;
+    }
+
+    const saved = await assignEngineToCar(supabase, userId, carId, engineId);
+    setEngineAssignments((current) => [
+      saved,
+      ...current.filter(
+        (assignment) =>
+          assignment.car_id !== saved.car_id &&
+          assignment.engine_id !== saved.engine_id,
+      ),
+    ]);
+    dispatchGarageChanged();
   }
 
   return (
@@ -685,7 +730,7 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
           onClose={resetCarForm}
         >
           <form onSubmit={handleSaveCar}>
-            <div className="form-grid">
+            <div className="form-grid single">
               <label>
                 Name
                 <input
@@ -697,6 +742,8 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
                   placeholder="Blue car"
                 />
               </label>
+            </div>
+            <div className="form-grid">
               <label>
                 Type
                 <select
@@ -724,6 +771,8 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
                   placeholder="Nervo Coggin"
                 />
               </label>
+            </div>
+            <div className="form-grid">
               <label>
                 Year
                 <input
@@ -737,6 +786,20 @@ export function GarageView({ supabase, userId }: GarageViewProps) {
                   }
                   placeholder="2024"
                 />
+              </label>
+              <label>
+                Installed Engine
+                <select
+                  value={carEngineId}
+                  onChange={(event) => setCarEngineId(event.target.value)}
+                >
+                  <option value="">No engine installed</option>
+                  {engines.map((engine) => (
+                    <option key={engine.id} value={engine.id}>
+                      {engine.name}
+                    </option>
+                  ))}
+                </select>
               </label>
             </div>
             <div className="form-grid notes-grid single">
@@ -1299,4 +1362,8 @@ function maintenanceMeta(entry: EngineMaintenanceWithType) {
   ]
     .filter(Boolean)
     .join(" - ");
+}
+
+function dispatchGarageChanged() {
+  window.dispatchEvent(new CustomEvent(GARAGE_CHANGED_EVENT));
 }
