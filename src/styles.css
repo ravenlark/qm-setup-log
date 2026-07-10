@@ -2499,6 +2499,18 @@ textarea:hover {
     padding: var(--space-7);
   }
 
+  .session-modal-panel {
+    padding: var(--space-4);
+  }
+
+  .session-modal-panel .form-panel {
+    padding: 0;
+  }
+
+  .session-modal-panel .session-card {
+    padding: var(--space-4);
+  }
+
   .panel-header {
     align-items: flex-start;
     flex-direction: column;
@@ -2548,8 +2560,9 @@ textarea:hover {
     gap: var(--space-3);
   }
 
-  .session-modal-panel .date-time-grid {
-    grid-template-columns: 1fr;
+  .session-modal-panel .date-time-grid input {
+    padding: 0 7px;
+    font-size: 0.9rem;
   }
 
   .garage-stat-grid,
