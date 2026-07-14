@@ -1,7 +1,16 @@
 {
+  "functions": {
+    "api/**/*.py": {
+      "excludeFiles": "{.venv-libxrk/**,dist/**,node_modules/**,work/**,scripts/**,supabase/**,.git/**}"
+    }
+  },
   "rewrites": [
     {
-      "source": "/(.*)",
+      "source": "/api/telemetry/parse",
+      "destination": "/api/telemetry_parse"
+    },
+    {
+      "source": "/((?!api/|@vite/|@react-refresh|src/|node_modules/|assets/|icons/|favicon|apple-touch-icon|robots.txt|sitemap.xml).*)",
       "destination": "/index.html"
     }
   ]

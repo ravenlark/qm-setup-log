@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {
+  BarChart3,
   Bookmark,
   Copy,
   Flag,
@@ -9,6 +10,7 @@ import {
   Save,
   Search,
   Trash2,
+  Upload,
   X,
 } from "lucide-react";
 import { fetchCars, type RaceCar } from "../data/cars";
@@ -40,6 +42,13 @@ import {
   updateSession,
 } from "../data/sessions";
 import {
+  deleteSessionTelemetryFile,
+  fetchCachedParsedTelemetryJson,
+  fetchSessionTelemetryFiles,
+  importSessionTelemetryFile,
+  type SessionTelemetryFile,
+} from "../data/sessionTelemetry";
+import {
   fetchRuntimeSetupDefinitions,
   setupFieldsForCarTypeWithRuntime,
   setupSectionsForCarTypeWithRuntime,
@@ -62,6 +71,8 @@ import {
   calculateWeightStats,
   SetupFieldsEditor,
 } from "./SetupFieldsEditor";
+import type { XrkParseResult } from "./telemetry/TelemetryReportView";
+import { SessionTelemetryReportView } from "./telemetry/SessionTelemetryReportView";
 
 const sessionTypes = ["Practice", "Qualifying", "Heat", "Main"];
 
@@ -146,6 +157,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
   const [tracks, setTracks] = useState<TrackWithNotes[]>([]);
   const [assignments, setAssignments] = useState<EngineAssignment[]>([]);
   const [sessions, setSessions] = useState<SetupSession[]>([]);
+  const [telemetryFiles, setTelemetryFiles] = useState<SessionTelemetryFile[]>([]);
   const [favoriteSetups, setFavoriteSetups] = useState<FavoriteSetup[]>([]);
   const [setupDefinitions, setSetupDefinitions] =
     useState<RuntimeSetupDefinitionMap>({});
@@ -166,6 +178,16 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
     "loading",
   );
   const [message, setMessage] = useState("");
+  const [telemetryImportingSessionId, setTelemetryImportingSessionId] = useState("");
+  const [telemetryDeletingFileId, setTelemetryDeletingFileId] = useState("");
+  const [telemetryReport, setTelemetryReport] = useState<{
+    files: Array<{ file: SessionTelemetryFile; payload: XrkParseResult }>;
+    session: SetupSession;
+  } | null>(null);
+  const [telemetryReportStatus, setTelemetryReportStatus] = useState<
+    "idle" | "loading" | "ready" | "error"
+  >("idle");
+  const [telemetryReportError, setTelemetryReportError] = useState("");
 
   const carById = useMemo(
     () => new Map(cars.map((car) => [car.id, car])),
@@ -251,6 +273,18 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
     sessionTypeFilter,
     trackById,
   ]);
+  const telemetryFilesBySessionId = useMemo(() => {
+    const filesBySessionId = new Map<string, SessionTelemetryFile[]>();
+    for (const file of telemetryFiles) {
+      const files = filesBySessionId.get(file.session_id) ?? [];
+      files.push(file);
+      filesBySessionId.set(file.session_id, files);
+    }
+    for (const files of filesBySessionId.values()) {
+      files.sort(sortTelemetryFiles);
+    }
+    return filesBySessionId;
+  }, [telemetryFiles]);
   const favoriteSourceCar = favoriteForm.session
     ? carById.get(favoriteForm.session.car_id)
     : undefined;
@@ -265,6 +299,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
       fetchEngines(supabase, userId),
       fetchActiveEngineAssignments(supabase, userId),
       fetchSessions(supabase, userId),
+      fetchSessionTelemetryFiles(supabase, userId),
       fetchFavoriteSetups(supabase, userId),
       fetchUserTracks(supabase, userId),
       fetchRuntimeSetupDefinitions(supabase),
@@ -275,6 +310,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
           nextEngines,
           nextAssignments,
           nextSessions,
+          nextTelemetryFiles,
           nextFavoriteSetups,
           nextTrackOptions,
           nextSetupDefinitions,
@@ -291,6 +327,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
             nextEngines,
             nextFavoriteSetups,
             nextSessions,
+            nextTelemetryFiles,
             nextSetupDefinitions,
             nextTracks: mergeTracks(nextTrackOptions, nextSessionTracks),
           };
@@ -303,6 +340,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
         nextTracks,
         nextAssignments,
         nextSessions,
+        nextTelemetryFiles,
         nextSetupDefinitions,
       }) => {
         if (!isCurrent) return;
@@ -312,6 +350,7 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
         setTracks(nextTracks);
         setAssignments(nextAssignments);
         setSessions(nextSessions);
+        setTelemetryFiles(nextTelemetryFiles);
         setSetupDefinitions(nextSetupDefinitions);
         setSessionForm((current) => {
           const carId = current.car_id || nextCars[0]?.id || "";
@@ -702,6 +741,9 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
     try {
       await deleteSession(supabase, session.id);
       setSessions((current) => current.filter((item) => item.id !== session.id));
+      setTelemetryFiles((current) =>
+        current.filter((file) => file.session_id !== session.id),
+      );
       if (editingSessionId === session.id) closeSessionModal();
       if (expandedSessionId === session.id) setExpandedSessionId("");
       dispatchSessionsChanged();
@@ -712,6 +754,112 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
       );
     } finally {
       setStatus("ready");
+    }
+  }
+
+  async function handleTelemetryUpload(session: SetupSession, files: FileList | null) {
+    const selectedFiles = Array.from(files ?? []);
+    if (!selectedFiles.length) return;
+
+    setTelemetryImportingSessionId(session.id);
+    setMessage("");
+
+    try {
+      const importedFiles: SessionTelemetryFile[] = [];
+      for (const file of selectedFiles) {
+        importedFiles.push(
+          await importSessionTelemetryFile({
+            file,
+            sessionId: session.id,
+            supabase,
+            userId,
+          }),
+        );
+      }
+
+      setTelemetryFiles((current) =>
+        mergeTelemetryFiles(current, importedFiles).sort(sortTelemetryFiles),
+      );
+      setMessage(
+        importedFiles.length === 1
+          ? "Telemetry file attached."
+          : `${importedFiles.length} telemetry files attached.`,
+      );
+    } catch (error) {
+      setMessage(
+        error instanceof Error ? error.message : "Telemetry upload failed.",
+      );
+    } finally {
+      setTelemetryImportingSessionId("");
+    }
+  }
+
+  async function handleViewTelemetry(
+    session: SetupSession,
+    files: SessionTelemetryFile[],
+  ) {
+    const orderedFiles = [...files].sort(sortTelemetryFiles);
+    if (!orderedFiles.length) return;
+
+    setTelemetryReport({ files: [], session });
+    setTelemetryReportStatus("loading");
+    setTelemetryReportError("");
+
+    try {
+      const reportFiles = await Promise.all(
+        orderedFiles.map(async (file) => ({
+          file,
+          payload: (await fetchCachedParsedTelemetryJson(
+            supabase,
+            file,
+          )) as XrkParseResult,
+        })),
+      );
+      setTelemetryReport({ files: reportFiles, session });
+      setTelemetryReportStatus("ready");
+    } catch (error) {
+      setTelemetryReportStatus("error");
+      setTelemetryReportError(
+        error instanceof Error
+          ? error.message
+          : "Telemetry report could not be loaded.",
+      );
+    }
+  }
+
+  async function handleDeleteTelemetryFile(file: SessionTelemetryFile) {
+    const shouldDelete = window.confirm(
+      `Delete ${file.original_filename} from this session?`,
+    );
+    if (!shouldDelete) return;
+
+    setTelemetryDeletingFileId(file.id);
+    setMessage("");
+
+    try {
+      await deleteSessionTelemetryFile({ file, supabase });
+      setTelemetryFiles((current) =>
+        current.filter((telemetryFile) => telemetryFile.id !== file.id),
+      );
+      setTelemetryReport((current) =>
+        current
+          ? {
+              ...current,
+              files: current.files.filter(
+                (reportFile) => reportFile.file.id !== file.id,
+              ),
+            }
+          : current,
+      );
+      setMessage("Telemetry file removed.");
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "Telemetry file could not be removed.",
+      );
+    } finally {
+      setTelemetryDeletingFileId("");
     }
   }
 
@@ -790,12 +938,18 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
                 key={session.id}
                 session={session}
                 status={status}
+                telemetryFiles={telemetryFilesBySessionId.get(session.id) ?? []}
+                telemetryDeletingFileId={telemetryDeletingFileId}
+                telemetryImporting={telemetryImportingSessionId === session.id}
                 trackName={trackById.get(session.track_id)?.name ?? "Unknown track"}
                 onCopy={handleCopySession}
                 onDelete={handleDeleteSession}
+                onDeleteTelemetryFile={handleDeleteTelemetryFile}
                 onEdit={handleEditSession}
                 onSaveFavorite={startSaveFavoriteFromSession}
                 onToggleBaseline={handleToggleBaseline}
+                onUploadTelemetry={(files) => handleTelemetryUpload(session, files)}
+                onViewTelemetry={(files) => handleViewTelemetry(session, files)}
                 onToggle={() =>
                   setExpandedSessionId((current) =>
                     current === session.id ? "" : session.id,
@@ -1090,6 +1244,39 @@ export function SessionsView({ supabase, userId }: SessionsViewProps) {
           </form>
         </Modal>
       ) : null}
+
+      {telemetryReport ? (
+        <Modal
+          eyebrow="Telemetry"
+          icon={<BarChart3 size={20} />}
+          panelClassName="telemetry-report-modal-panel"
+          title={[
+            formatShortDateTime(telemetryReport.session),
+            trackById.get(telemetryReport.session.track_id)?.name,
+          ]
+            .filter(Boolean)
+            .join(" - ")}
+          onClose={() => {
+            setTelemetryReport(null);
+            setTelemetryReportStatus("idle");
+            setTelemetryReportError("");
+          }}
+        >
+          {telemetryReportStatus === "loading" ? (
+            <div className="empty-state">Loading telemetry report...</div>
+          ) : null}
+          {telemetryReportStatus === "error" ? (
+            <div className="empty-state">
+              {telemetryReportError || "Telemetry report could not be loaded."}
+            </div>
+          ) : null}
+          {telemetryReportStatus === "ready" ? (
+            <div className="session-telemetry-report-list">
+              <SessionTelemetryReportView files={telemetryReport.files} />
+            </div>
+          ) : null}
+        </Modal>
+      ) : null}
     </section>
   );
 }
@@ -1140,12 +1327,18 @@ function SessionHistoryCard({
   expanded,
   onCopy,
   onDelete,
+  onDeleteTelemetryFile,
   onEdit,
   onSaveFavorite,
   onToggleBaseline,
   onToggle,
+  onUploadTelemetry,
+  onViewTelemetry,
   session,
   status,
+  telemetryFiles,
+  telemetryDeletingFileId,
+  telemetryImporting,
   trackName,
 }: {
   carName: string;
@@ -1153,12 +1346,18 @@ function SessionHistoryCard({
   expanded: boolean;
   onCopy: (session: SetupSession) => void;
   onDelete: (session: SetupSession) => void;
+  onDeleteTelemetryFile: (file: SessionTelemetryFile) => void;
   onEdit: (session: SetupSession) => void;
   onSaveFavorite: (session: SetupSession) => void;
   onToggleBaseline: (session: SetupSession) => void;
   onToggle: () => void;
+  onUploadTelemetry: (files: FileList | null) => void;
+  onViewTelemetry: (files: SessionTelemetryFile[]) => void;
   session: SetupSession;
   status: "loading" | "ready" | "saving";
+  telemetryFiles: SessionTelemetryFile[];
+  telemetryDeletingFileId: string;
+  telemetryImporting: boolean;
   trackName: string;
 }) {
   const stats = calculateWeightStats(sessionToInput(session));
@@ -1204,6 +1403,9 @@ function SessionHistoryCard({
               <span className="session-pill">{totalLaps} laps</span>
             ) : null}
             {gearPill ? <span className="session-pill">{gearPill}</span> : null}
+            {telemetryFiles.length ? (
+              <span className="session-pill">{telemetryFiles.length} telemetry</span>
+            ) : null}
           </div>
         </div>
       </button>
@@ -1235,6 +1437,65 @@ function SessionHistoryCard({
               ))}
             </div>
           ) : null}
+
+          <div className="session-telemetry-panel">
+            <div className="session-telemetry-heading">
+              <strong>Telemetry</strong>
+              <div className="session-telemetry-actions">
+                {telemetryFiles.length ? (
+                  <button
+                    className="secondary-button"
+                    disabled={status === "saving"}
+                    type="button"
+                    onClick={() => onViewTelemetry(telemetryFiles)}
+                  >
+                    <BarChart3 size={17} />
+                    View Telemetry
+                  </button>
+                ) : null}
+                <label className="secondary-button telemetry-upload-button">
+                  <Upload size={17} />
+                  {telemetryImporting ? "Importing" : "Upload XRK"}
+                  <input
+                    accept=".xrk"
+                    disabled={telemetryImporting || status === "saving"}
+                    multiple
+                    type="file"
+                    onChange={(event) => {
+                      onUploadTelemetry(event.target.files);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+              </div>
+            </div>
+            {telemetryFiles.length ? (
+              <div className="session-telemetry-list">
+                {telemetryFiles.map((file) => (
+                  <div className="session-telemetry-file" key={file.id}>
+                    <div className="session-telemetry-file-main">
+                      <strong>{file.original_filename}</strong>
+                      <span>{formatTelemetryRecordingStarted(file)}</span>
+                      <span>{formatTelemetrySummary(file)}</span>
+                    </div>
+                    <button
+                      aria-label={`Delete ${file.original_filename}`}
+                      className="icon-button danger-icon-button"
+                      disabled={
+                        telemetryDeletingFileId === file.id || status === "saving"
+                      }
+                      type="button"
+                      onClick={() => onDeleteTelemetryFile(file)}
+                    >
+                      <Trash2 size={17} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p>No telemetry files attached yet.</p>
+            )}
+          </div>
 
           <div className="session-history-actions">
             <button
@@ -1307,19 +1568,23 @@ function Modal({
   eyebrow,
   icon,
   onClose,
+  panelClassName,
   title,
 }: {
   children: ReactNode;
   eyebrow: string;
   icon: ReactNode;
   onClose: () => void;
+  panelClassName?: string;
   title: string;
 }) {
   return (
     <div className="modal-backdrop" role="presentation" onMouseDown={onClose}>
       <section
         aria-modal="true"
-        className="modal-panel session-modal-panel"
+        className={["modal-panel session-modal-panel", panelClassName]
+          .filter(Boolean)
+          .join(" ")}
         role="dialog"
         onMouseDown={(event) => event.stopPropagation()}
       >
@@ -1406,6 +1671,63 @@ function sortSessions(a: SetupSession, b: SetupSession) {
     b.session_date.localeCompare(a.session_date) ||
     (b.session_time ?? "").localeCompare(a.session_time ?? "")
   );
+}
+
+function sortTelemetryFiles(a: SessionTelemetryFile, b: SessionTelemetryFile) {
+  const aStartedAt = a.recording_started_at ?? "";
+  const bStartedAt = b.recording_started_at ?? "";
+  if (aStartedAt && bStartedAt && aStartedAt !== bStartedAt) {
+    return aStartedAt.localeCompare(bStartedAt);
+  }
+  if (aStartedAt && !bStartedAt) return -1;
+  if (!aStartedAt && bStartedAt) return 1;
+  return a.created_at.localeCompare(b.created_at);
+}
+
+function mergeTelemetryFiles(
+  current: SessionTelemetryFile[],
+  next: SessionTelemetryFile[],
+) {
+  const filesById = new Map(current.map((file) => [file.id, file]));
+  for (const file of next) filesById.set(file.id, file);
+  return Array.from(filesById.values());
+}
+
+function formatTelemetrySummary(file: SessionTelemetryFile) {
+  const bestLap = numericJsonValue(file.derived.bestCompleteLapSeconds);
+  const lapCount = numericJsonValue(file.derived.completeLapCount);
+  const duration = file.recording_duration_seconds;
+
+  return [
+    bestLap === null ? null : `best ${bestLap.toFixed(3)}s`,
+    lapCount === null ? null : `${lapCount} laps`,
+    duration === null ? null : formatDuration(duration),
+  ]
+    .filter(Boolean)
+    .join(" • ") || file.parse_status;
+}
+
+function formatTelemetryRecordingStarted(file: SessionTelemetryFile) {
+  if (!file.recording_started_at) return "recording time not available";
+
+  const startedAt = new Date(file.recording_started_at);
+  if (Number.isNaN(startedAt.getTime())) return "recording time not available";
+
+  return `recorded ${startedAt.toLocaleString(undefined, {
+    dateStyle: "medium",
+    timeStyle: "short",
+  })}`;
+}
+
+function numericJsonValue(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
+}
+
+function formatDuration(seconds: number) {
+  if (!Number.isFinite(seconds)) return "";
+  const minutes = Math.floor(seconds / 60);
+  const remainingSeconds = Math.round(seconds % 60);
+  return minutes ? `${minutes}m ${remainingSeconds}s` : `${remainingSeconds}s`;
 }
 
 function sessionToInput(session: SetupSession): SetupSessionInput {

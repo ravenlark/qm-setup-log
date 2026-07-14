@@ -201,6 +201,11 @@ const AdminView = lazy(() =>
     default: module.AdminView,
   })),
 );
+const XrkUploadTestView = lazy(() =>
+  import("./components/XrkUploadTestView").then((module) => ({
+    default: module.XrkUploadTestView,
+  })),
+);
 
 async function signInWithGoogleRedirect(redirectPath: string) {
   if (!supabase) {
@@ -554,8 +559,43 @@ export function App() {
       <Route path="/admin/*" element={<AdminPage />} />
       <Route path="/pricing" element={<PricingPage />} />
       <Route path="/privacy-policy" element={<PrivacyPolicyPage />} />
+      <Route path="/test/xrk-upload" element={<XrkUploadTestPage />} />
       <Route path="*" element={<NotFoundPage />} />
     </Routes>
+  );
+}
+
+function XrkUploadTestPage() {
+  const accountHeader = useAccountHeaderState();
+  const {
+    authError: signInAuthError,
+    isSupabaseConfigured,
+    signIn,
+  } = useGoogleSignIn("/test/xrk-upload");
+  const authError = signInAuthError || accountHeader.authError;
+
+  return (
+    <main className="app-shell">
+      <SeoMetadata
+        canonicalPath="/test/xrk-upload"
+        description="Temporary My Setup Log XRK parser test page."
+        robots="noindex, nofollow"
+        title="XRK Upload Test | My Setup Log"
+      />
+      <PageHeader
+        accountHeader={accountHeader}
+        brandHref="/app/sessions"
+        isSupabaseConfigured={isSupabaseConfigured}
+        onSignIn={() => signIn()}
+      />
+      <section className="workspace">
+        {authError ? <p className="auth-error">{authError}</p> : null}
+        <Suspense fallback={<LoadingPanel message="Loading XRK test page..." />}>
+          <XrkUploadTestView />
+        </Suspense>
+      </section>
+      <SiteFooter />
+    </main>
   );
 }
 
