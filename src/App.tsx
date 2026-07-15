@@ -121,7 +121,7 @@ const tabs = [
   { id: "setups", label: "Setups", icon: Bookmark, path: "/app/setups" },
   { id: "garage", label: "My Garage", icon: Car, path: "/app/garage" },
   { id: "tracks", label: "Tracks", icon: MapPinned, path: "/app/tracks" },
-  { id: "reports", label: "Reports", icon: BarChart3, path: "/app/reports" },
+  { id: "reports", label: "Reporting", icon: BarChart3, path: "/app/reports" },
 ] satisfies Array<{
   id: AppTab;
   label: string;

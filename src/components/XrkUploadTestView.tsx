@@ -249,8 +249,8 @@ export function XrkUploadTestView() {
   }
 
   return (
-    <div className="xrk-test-layout">
-      <section className="panel xrk-test-panel">
+    <div className="telemetry-report-layout">
+      <section className="panel telemetry-report-panel">
         <div className="panel-header">
           <div>
             <span className="eyebrow">Temporary Test Route</span>
@@ -258,7 +258,7 @@ export function XrkUploadTestView() {
           </div>
         </div>
 
-        <div className="xrk-upload-dropzone">
+        <div className="telemetry-upload-dropzone">
           <FileUp size={28} />
           <label>
             XRK file
@@ -310,14 +310,14 @@ export function XrkUploadTestView() {
             />
           </section>
 
-          <section className="panel xrk-test-panel">
+          <section className="panel telemetry-report-panel">
             <div className="panel-header">
               <div>
                 <span className="eyebrow">Parsed File</span>
                 <h2>{result.file?.originalName ?? result.file?.name ?? "XRK file"}</h2>
               </div>
             </div>
-            <div className="xrk-detail-grid">
+            <div className="telemetry-detail-grid">
               <Detail label="Size" value={formatBytes(result.file?.sizeBytes)} />
               <Detail label="SHA-256" value={result.file?.sha256 ?? "Not available"} />
               <Detail
@@ -331,14 +331,14 @@ export function XrkUploadTestView() {
             </div>
           </section>
 
-          <section className="panel xrk-test-panel">
+          <section className="panel telemetry-report-panel">
             <div className="panel-header">
               <div>
                 <span className="eyebrow">Laps</span>
                 <h2>Lap times</h2>
               </div>
             </div>
-            <p className="xrk-chart-note">
+            <p className="telemetry-chart-note">
               Click lap bars to select or remove laps from the overlay charts.
             </p>
             <LapTimesBarChart
@@ -349,13 +349,13 @@ export function XrkUploadTestView() {
             />
           </section>
 
-          <section className="panel xrk-test-panel">
+          <section className="panel telemetry-report-panel">
             <div className="panel-header">
               <div>
                 <span className="eyebrow">Acceleration</span>
                 <h2>Inline acceleration by lap</h2>
               </div>
-              <div className="xrk-chart-controls">
+              <div className="telemetry-chart-controls">
                   <label>
                     Smoothing
                     <select
@@ -375,7 +375,7 @@ export function XrkUploadTestView() {
             </div>
             {accelerationChannel ? (
               <>
-                <p className="xrk-chart-note">
+                <p className="telemetry-chart-note">
                   Source channel: {accelerationChannel.name}
                   {accelerationChannel.units ? ` (${accelerationChannel.units})` : ""}
                   {accelerationSmoothingWindow > 1
@@ -396,13 +396,13 @@ export function XrkUploadTestView() {
             )}
           </section>
 
-          <section className="panel xrk-test-panel">
+          <section className="panel telemetry-report-panel">
             <div className="panel-header">
               <div>
                 <span className="eyebrow">GPS Speed</span>
                 <h2>GPS speed by lap</h2>
               </div>
-              <div className="xrk-chart-controls">
+              <div className="telemetry-chart-controls">
                   <label>
                     Smoothing
                     <select
@@ -422,7 +422,7 @@ export function XrkUploadTestView() {
             </div>
             {gpsSpeedChannel ? (
               <>
-                <p className="xrk-chart-note">
+                <p className="telemetry-chart-note">
                   Source channel: {gpsSpeedChannel.name}
                   {gpsSpeedChannel.units
                     ? ` (${gpsSpeedChannel.units}, displayed as mph)`
@@ -445,13 +445,13 @@ export function XrkUploadTestView() {
             )}
           </section>
 
-          <section className="panel xrk-test-panel">
+          <section className="panel telemetry-report-panel">
             <div className="panel-header">
               <div>
                 <span className="eyebrow">Lateral Grip</span>
                 <h2>Lateral grip by lap</h2>
               </div>
-              <div className="xrk-chart-controls">
+              <div className="telemetry-chart-controls">
                   <label>
                     Smoothing
                     <select
@@ -471,7 +471,7 @@ export function XrkUploadTestView() {
             </div>
             {lateralGripChannel ? (
               <>
-                <p className="xrk-chart-note">
+                <p className="telemetry-chart-note">
                   Source channel: {lateralGripChannel.name}
                   {lateralGripChannel.units ? ` (${lateralGripChannel.units})` : ""}
                   {lateralGripSmoothingWindow > 1
@@ -492,13 +492,13 @@ export function XrkUploadTestView() {
             )}
           </section>
 
-          <section className="panel xrk-test-panel">
+          <section className="panel telemetry-report-panel">
             <div className="panel-header">
               <div>
                 <span className="eyebrow">Lateral Acceleration</span>
                 <h2>Lateral acceleration by lap</h2>
               </div>
-              <div className="xrk-chart-controls">
+              <div className="telemetry-chart-controls">
                   <label>
                     Smoothing
                     <select
@@ -520,7 +520,7 @@ export function XrkUploadTestView() {
             </div>
             {lateralAccelerationChannel ? (
               <>
-                <p className="xrk-chart-note">
+                <p className="telemetry-chart-note">
                   Source channel: {lateralAccelerationChannel.name}
                   {lateralAccelerationChannel.units
                     ? ` (${lateralAccelerationChannel.units})`
@@ -543,14 +543,14 @@ export function XrkUploadTestView() {
             )}
           </section>
 
-          <section className="panel xrk-test-panel">
+          <section className="panel telemetry-report-panel">
             <div className="panel-header">
               <div>
                 <span className="eyebrow">Lap Table</span>
                 <h2>Lap data</h2>
               </div>
             </div>
-            <div className="xrk-table-wrap">
+            <div className="telemetry-table-wrap">
               <table className="report-table">
                 <thead>
                   <tr>
@@ -572,14 +572,14 @@ export function XrkUploadTestView() {
             </div>
           </section>
 
-          <section className="panel xrk-test-panel">
+          <section className="panel telemetry-report-panel">
             <div className="panel-header">
               <div>
                 <span className="eyebrow">Channels</span>
                 <h2>Largest channel summaries</h2>
               </div>
             </div>
-            <div className="xrk-table-wrap">
+            <div className="telemetry-table-wrap">
               <table className="report-table">
                 <thead>
                   <tr>
@@ -606,14 +606,14 @@ export function XrkUploadTestView() {
             </div>
           </section>
 
-          <section className="panel xrk-test-panel">
+          <section className="panel telemetry-report-panel">
             <div className="panel-header">
               <div>
                 <span className="eyebrow">Raw Payload</span>
                 <h2>Parser JSON</h2>
               </div>
             </div>
-            <pre className="xrk-json-output">{rawResult}</pre>
+            <pre className="telemetry-json-output">{rawResult}</pre>
           </section>
         </>
       ) : (

@@ -1613,19 +1613,19 @@ textarea:hover {
   margin-top: var(--space-5);
 }
 
-.xrk-test-layout {
+.telemetry-report-layout {
   display: grid;
   gap: var(--space-6);
 }
 
-.xrk-test-panel {
+.telemetry-report-panel {
   display: grid;
   gap: var(--space-6);
   min-width: 0;
   padding: var(--space-7);
 }
 
-.xrk-upload-dropzone {
+.telemetry-upload-dropzone {
   display: grid;
   gap: var(--space-4);
   padding: var(--space-7);
@@ -1634,25 +1634,25 @@ textarea:hover {
   background: var(--color-surface-muted);
 }
 
-.xrk-upload-dropzone svg {
+.telemetry-upload-dropzone svg {
   color: var(--color-accent);
 }
 
-.xrk-upload-dropzone label {
+.telemetry-upload-dropzone label {
   display: grid;
   gap: var(--space-3);
   color: #405343;
   font-weight: var(--weight-bold);
 }
 
-.xrk-upload-dropzone p {
+.telemetry-upload-dropzone p {
   margin: 0;
   color: var(--color-muted);
   font-size: var(--font-small);
   font-weight: var(--weight-bold);
 }
 
-.xrk-detail-grid {
+.telemetry-detail-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-4);
@@ -1715,12 +1715,12 @@ textarea:hover {
   font-weight: var(--weight-bold);
 }
 
-.xrk-table-wrap {
+.telemetry-table-wrap {
   min-width: 0;
   overflow: auto;
 }
 
-.xrk-chart-controls {
+.telemetry-chart-controls {
   display: grid;
   grid-template-columns: minmax(150px, 180px);
   gap: var(--space-4);
@@ -1734,6 +1734,10 @@ textarea:hover {
   gap: var(--space-5);
 }
 
+.telemetry-chart-heading-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .telemetry-chart-heading-copy {
   display: grid;
   gap: var(--space-2);
@@ -1744,7 +1748,7 @@ textarea:hover {
   margin: 0;
 }
 
-.xrk-chart-controls label {
+.telemetry-chart-controls label {
   display: grid;
   gap: 6px;
   color: #405343;
@@ -1752,14 +1756,23 @@ textarea:hover {
   font-weight: var(--weight-bold);
 }
 
-.xrk-chart-note {
+.telemetry-chart-note {
   margin: 0;
   color: var(--color-muted);
   font-size: var(--font-small);
-  font-weight: var(--weight-bold);
+  font-weight: var(--weight-normal);
+  line-height: 1.45;
 }
 
-.xrk-json-output {
+.telemetry-chart-fine-print {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: var(--weight-normal);
+  line-height: 1.4;
+}
+
+.telemetry-json-output {
   max-height: 560px;
   margin: 0;
   overflow: auto;
@@ -2018,6 +2031,72 @@ textarea:hover {
 .report-summary p {
   color: var(--color-muted);
   font-weight: var(--weight-heavy);
+}
+
+.report-outcome-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.report-outcome-card {
+  display: grid;
+  gap: 6px;
+  min-width: 0;
+  padding: var(--space-4);
+  border: 1px solid var(--color-warning-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.report-outcome-card span {
+  color: var(--color-muted);
+  font-size: var(--font-small);
+  font-weight: var(--weight-bold);
+}
+
+.report-outcome-card strong {
+  color: var(--color-heading);
+  font-size: 1.05rem;
+  font-weight: var(--weight-heavy);
+}
+
+.report-outcome-card small {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: var(--weight-normal);
+  line-height: 1.35;
+}
+
+.report-chart-panel {
+  display: grid;
+  gap: var(--space-5);
+  min-width: 0;
+  padding: var(--space-6);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.report-lap-comparison-chart {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.report-chart-note {
+  margin: 0;
+  color: var(--color-muted);
+  font-size: var(--font-small);
+  font-weight: var(--weight-normal);
+}
+
+.report-run-a-swatch {
+  background: #287a3e;
+}
+
+.report-run-b-swatch {
+  background: #2563eb;
 }
 
 .report-diff-chips {
@@ -2917,8 +2996,8 @@ textarea:hover {
   .home-feature-grid,
   .pricing-grid,
   .intro-panel,
-  .xrk-detail-grid,
-  .xrk-chart-controls,
+  .telemetry-detail-grid,
+  .telemetry-chart-controls,
   .telemetry-chart-heading,
   .status-grid.compact,
   .tracks-layout,
@@ -2933,6 +3012,7 @@ textarea:hover {
   .detail-grid,
   .maintenance-row,
   .form-grid,
+  .report-outcome-grid,
   .report-selectors,
   .session-history-filters,
   .subscription-card,

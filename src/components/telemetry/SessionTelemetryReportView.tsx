@@ -7,9 +7,16 @@ import {
 } from "./LapTimesBarChart";
 import {
   TelemetryLineChart,
-  type TelemetryChartRow,
   type TelemetryChartSeries,
 } from "./TelemetryLineChart";
+import {
+  buildTelemetrySeriesForLapRefs,
+  convertGpsSpeedToMph,
+  hasTelemetryChannel,
+  telemetryChannelUnits,
+  telemetryRpmRange,
+  type XrkLap,
+} from "./telemetrySeries";
 import type { XrkParseResult } from "./TelemetryReportView";
 
 type TelemetryReportFile = {
@@ -17,13 +24,11 @@ type TelemetryReportFile = {
   payload: XrkParseResult;
 };
 
-type XrkChannel = NonNullable<XrkParseResult["channels"]>[number];
-type XrkLap = NonNullable<XrkParseResult["laps"]>[number];
-
 type CombinedLap = {
   file: SessionTelemetryFile;
   fileIndex: number;
   globalLapIndex: number;
+  id: string;
   isCompleteLap: boolean;
   label: string;
   lap: XrkLap;
@@ -35,7 +40,6 @@ type SessionTelemetryReportViewProps = {
   files: TelemetryReportFile[];
 };
 
-const metersPerSecondToMph = 2.2369362921;
 const smoothingOptions = [
   { label: "Raw", value: 1 },
   { label: "Light", value: 9 },
@@ -166,7 +170,7 @@ export function SessionTelemetryReportView({
   }
 
   return (
-    <div className="xrk-test-layout">
+    <div className="telemetry-report-layout">
       <section className="status-grid compact">
         <MetricCard label="Total Laps" value={String(combinedLaps.length)} />
         <MetricCard
@@ -175,16 +179,19 @@ export function SessionTelemetryReportView({
         />
       </section>
 
-      <section className="panel xrk-test-panel">
-        <div className="panel-header">
-          <div>
-            <h2>Combined lap times</h2>
+      <section className="panel telemetry-report-panel">
+        <div className="telemetry-chart-heading telemetry-chart-heading-single">
+          <div className="telemetry-chart-heading-copy">
+            <h2>Lap Times</h2>
+            <p className="telemetry-chart-note">
+              Compare lap times across the full session. Select laps to overlay
+              their telemetry traces in the charts below.
+            </p>
+            <p className="telemetry-chart-fine-print">
+              The black markers show each lap&apos;s minimum and maximum RPM.
+            </p>
           </div>
         </div>
-        <p className="xrk-chart-note">
-          Click lap bars to select or remove laps from the overlay charts. The
-          narrow floating bars show min-to-max RPM for each lap.
-        </p>
         <LapTimesBarChart
           rows={visibleLapTimeRows}
           selectedLapColors={selectedLapColors}
@@ -201,20 +208,22 @@ export function SessionTelemetryReportView({
       </section>
 
       <ChannelChart
+        description="Shows acceleration and braking over the selected laps, making it easier to compare throttle pickup, lift points, and braking zones."
         emptyMessage="No GPS_InlineAcc channel was found in the attached files."
-        hasSourceChannel={hasChannel(combinedLaps, "GPS_InlineAcc")}
+        hasSourceChannel={hasTelemetryChannel(combinedLaps, "GPS_InlineAcc")}
         missingSamplesMessage="No acceleration samples were found for the selected lap."
         series={accelerationSeries}
         smoothingWindow={accelerationSmoothingWindow}
         title="Inline acceleration by lap"
         tooltipLabel="Inline acceleration"
-        units={channelUnits(combinedLaps, "GPS_InlineAcc")}
+        units={telemetryChannelUnits(combinedLaps, "GPS_InlineAcc")}
         onSmoothingChange={setAccelerationSmoothingWindow}
       />
 
       <ChannelChart
+        description="Shows speed over the selected laps so you can compare corner entry, mid-corner minimum speed, and straightaway speed."
         emptyMessage="No GPS Speed channel was found in the attached files."
-        hasSourceChannel={hasChannel(combinedLaps, "GPS Speed")}
+        hasSourceChannel={hasTelemetryChannel(combinedLaps, "GPS Speed")}
         missingSamplesMessage="No GPS speed samples were found for the selected lap."
         series={gpsSpeedSeries}
         smoothingWindow={gpsSpeedSmoothingWindow}
@@ -226,30 +235,32 @@ export function SessionTelemetryReportView({
       />
 
       <ChannelChart
+        description="Shows lateral grip demand over the selected laps, helping compare how hard the car is working through corners."
         emptyMessage="No Lateral Grip channel was found in the attached files."
-        hasSourceChannel={hasChannel(combinedLaps, "Lateral Grip")}
+        hasSourceChannel={hasTelemetryChannel(combinedLaps, "Lateral Grip")}
         missingSamplesMessage="No lateral grip samples were found for the selected lap."
         series={lateralGripSeries}
         smoothingWindow={lateralGripSmoothingWindow}
         title="Lateral grip by lap"
         tooltipLabel="Lateral grip"
-        units={channelUnits(combinedLaps, "Lateral Grip")}
+        units={telemetryChannelUnits(combinedLaps, "Lateral Grip")}
         onSmoothingChange={setLateralGripSmoothingWindow}
       />
 
       <ChannelChart
+        description="Shows side-to-side acceleration from GPS data, helping compare cornering load and direction changes between laps."
         emptyMessage="No GPS_LateralAcc channel was found in the attached files."
-        hasSourceChannel={hasChannel(combinedLaps, "GPS_LateralAcc")}
+        hasSourceChannel={hasTelemetryChannel(combinedLaps, "GPS_LateralAcc")}
         missingSamplesMessage="No lateral acceleration samples were found for the selected lap."
         series={lateralAccelerationSeries}
         smoothingWindow={lateralAccelerationSmoothingWindow}
         title="Lateral acceleration by lap"
         tooltipLabel="Lateral acceleration"
-        units={channelUnits(combinedLaps, "GPS_LateralAcc")}
+        units={telemetryChannelUnits(combinedLaps, "GPS_LateralAcc")}
         onSmoothingChange={setLateralAccelerationSmoothingWindow}
       />
 
-      <details className="panel xrk-test-panel telemetry-file-details-panel">
+      <details className="panel telemetry-report-panel telemetry-file-details-panel">
         <summary>Telemetry File Details</summary>
         <div className="telemetry-file-detail-meta">
           <span>{files.length} files parsed</span>
@@ -271,6 +282,7 @@ export function SessionTelemetryReportView({
 }
 
 function ChannelChart({
+  description,
   emptyMessage,
   hasSourceChannel,
   missingSamplesMessage,
@@ -282,6 +294,7 @@ function ChannelChart({
   tooltipLabel,
   units,
 }: {
+  description: string;
   emptyMessage: string;
   hasSourceChannel: boolean;
   missingSamplesMessage: string;
@@ -294,22 +307,27 @@ function ChannelChart({
   units: string;
 }) {
   return (
-    <section className="panel xrk-test-panel">
+    <section className="panel telemetry-report-panel">
       <div className="telemetry-chart-heading">
         <div className="telemetry-chart-heading-copy">
           <h2>{title}</h2>
           {hasSourceChannel ? (
-            <p className="xrk-chart-note">
-              Source channel spans attached recordings
-              {units ? ` (${units})` : ""}
-              {sourceUnitsSuffix ? `, ${sourceUnitsSuffix}` : ""}
-              {smoothingWindow > 1
-                ? `. Displayed as a ${smoothingWindow}-sample rolling average.`
-                : ". Displayed without smoothing."}
-            </p>
+            <>
+              <p className="telemetry-chart-note">{description}</p>
+              <p className="telemetry-chart-fine-print">
+                {sourceUnitsSuffix
+                  ? `${capitalizeFirst(sourceUnitsSuffix)}. `
+                  : units
+                    ? `Units: ${units}. `
+                    : ""}
+                {smoothingWindow > 1
+                  ? `Displayed as a ${smoothingWindow}-sample rolling average.`
+                  : "Displayed without smoothing."}
+              </p>
+            </>
           ) : null}
         </div>
-        <div className="xrk-chart-controls">
+        <div className="telemetry-chart-controls">
           <label>
             Smoothing
             <select
@@ -443,6 +461,7 @@ function buildCombinedLaps(files: TelemetryReportFile[]) {
         file,
         fileIndex,
         globalLapIndex,
+        id: `lap-${globalLapIndex}`,
         isCompleteLap: sourceLapIndex > 0 && sourceLapIndex < lastLapIndex,
         label: `Lap ${globalLapIndex + 1}`,
         lap,
@@ -512,7 +531,7 @@ function buildLapTimeRows(
   bestCompleteLapSeconds: number | null,
 ): LapTimeChartRow[] {
   return laps.map((combinedLap) => {
-    const rpmRange = lapRpmRange(combinedLap.payload, combinedLap.lap);
+    const rpmRange = telemetryRpmRange(combinedLap.payload, combinedLap.lap);
     const durationSeconds = combinedLap.lap.durationSeconds ?? 0;
     const isBestCompleteLap =
       combinedLap.isCompleteLap &&
@@ -543,171 +562,27 @@ function buildTelemetrySeries(
   smoothingWindow: number,
   convertValue: (value: number) => number = (value) => value,
 ): TelemetryChartSeries[] {
-  return selectedLapIndices
-    .map((lapIndex, seriesIndex) => {
-      const combinedLap = laps.find((lap) => lap.globalLapIndex === lapIndex);
-      if (!combinedLap) return null;
+  const lapRefs = selectedLapIndices
+    .map((lapIndex) => laps.find((lap) => lap.globalLapIndex === lapIndex))
+    .filter((lap): lap is CombinedLap => Boolean(lap));
 
-      const channel = findChannel(combinedLap.payload.channels, channelName);
-      const rows = buildTelemetryRows(
-        channel,
-        combinedLap.lap,
-        smoothingWindow,
-        convertValue,
-      );
-      if (!rows.length) return null;
-
-      return {
-        color: lapSeriesColors[seriesIndex % lapSeriesColors.length],
-        id: `lap-${combinedLap.globalLapIndex}`,
-        label: combinedLap.label,
-        rows,
-      };
-    })
-    .filter((series): series is TelemetryChartSeries => Boolean(series));
-}
-
-function buildTelemetryRows(
-  channel: XrkChannel | null,
-  lap: XrkLap,
-  smoothingWindow: number,
-  convertValue: (value: number) => number = (value) => value,
-): TelemetryChartRow[] {
-  if (!channel?.samples) return [];
-
-  const startSeconds = lap.startSeconds;
-  const endSeconds = lap.endSeconds;
-  if (
-    typeof startSeconds !== "number" ||
-    typeof endSeconds !== "number" ||
-    endSeconds <= startSeconds
-  ) {
-    return [];
-  }
-
-  return downsampleRows(
-    smoothTelemetryRows(
-      channel.samples
-        .map((sample) => {
-          const timeSeconds = sample.timeSeconds;
-          const value = sample.value;
-          if (
-            typeof timeSeconds !== "number" ||
-            typeof value !== "number" ||
-            !Number.isFinite(timeSeconds) ||
-            !Number.isFinite(value) ||
-            timeSeconds < startSeconds ||
-            timeSeconds > endSeconds
-          ) {
-            return null;
-          }
-
-          return {
-            value: convertValue(value),
-            timeIntoLapSeconds: timeSeconds - startSeconds,
-          };
-        })
-        .filter((row): row is TelemetryChartRow => Boolean(row)),
-      smoothingWindow,
-    ),
-    1200,
-  );
-}
-
-function lapRpmRange(payload: XrkParseResult, lap: XrkLap) {
-  const rpmChannel = findRpmChannel(payload.channels);
-  const samples = rpmChannel?.samples ?? [];
-  const startSeconds = lap.startSeconds;
-  const endSeconds = lap.endSeconds;
-
-  if (
-    typeof startSeconds !== "number" ||
-    typeof endSeconds !== "number" ||
-    endSeconds <= startSeconds
-  ) {
-    return null;
-  }
-
-  const values = samples
-    .filter(
-      (sample) =>
-        typeof sample.timeSeconds === "number" &&
-        typeof sample.value === "number" &&
-        sample.timeSeconds >= startSeconds &&
-        sample.timeSeconds <= endSeconds,
-    )
-    .map((sample) => sample.value as number);
-
-  if (!values.length) return null;
-  return {
-    max: Math.max(...values),
-    min: Math.min(...values),
-  };
-}
-
-function hasChannel(laps: CombinedLap[], channelName: string) {
-  return laps.some((lap) => findChannel(lap.payload.channels, channelName));
-}
-
-function channelUnits(laps: CombinedLap[], channelName: string) {
-  for (const lap of laps) {
-    const channel = findChannel(lap.payload.channels, channelName);
-    if (channel?.units) return channel.units;
-  }
-  return "";
-}
-
-function findChannel(channels: XrkParseResult["channels"], name: string) {
-  return (
-    channels?.find((channel) => channel.name === name) ??
-    channels?.find(
-      (channel) => channel.name?.toLowerCase() === name.toLowerCase(),
-    ) ??
-    null
-  );
-}
-
-function findRpmChannel(channels: XrkParseResult["channels"]) {
-  return (
-    findChannel(channels, "RPM") ??
-    channels?.find((channel) => channel.name?.toLowerCase().includes("rpm")) ??
-    null
-  );
-}
-
-function convertGpsSpeedToMph(value: number) {
-  return value * metersPerSecondToMph;
-}
-
-function smoothTelemetryRows(rows: TelemetryChartRow[], windowSize: number) {
-  if (rows.length <= 2 || windowSize <= 1) return rows;
-
-  const radius = Math.floor(windowSize / 2);
-  return rows.map((row, index) => {
-    const start = Math.max(0, index - radius);
-    const end = Math.min(rows.length, index + radius + 1);
-    const window = rows.slice(start, end);
-    const average =
-      window.reduce((sum, item) => sum + item.value, 0) / window.length;
-
-    return {
-      ...row,
-      value: average,
-    };
+  return buildTelemetrySeriesForLapRefs({
+    channelName,
+    colors: lapSeriesColors,
+    convertValue,
+    lapRefs,
+    smoothingWindow,
   });
-}
-
-function downsampleRows(rows: TelemetryChartRow[], maxRows: number) {
-  if (rows.length <= maxRows) return rows;
-
-  const step = rows.length / maxRows;
-  return Array.from({ length: maxRows }, (_, index) => rows[Math.floor(index * step)]);
 }
 
 function formatSeconds(value: number | null | undefined) {
   return typeof value === "number" && Number.isFinite(value)
     ? `${value.toFixed(3)}s`
     : "Not available";
+}
+
+function capitalizeFirst(value: string) {
+  return value ? `${value[0].toUpperCase()}${value.slice(1)}` : value;
 }
 
 function formatRecordingStart(file: SessionTelemetryFile) {

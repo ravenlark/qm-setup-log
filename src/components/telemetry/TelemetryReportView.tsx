@@ -203,7 +203,7 @@ export function TelemetryReportView({
   }
 
   return (
-    <div className="xrk-test-layout">
+    <div className="telemetry-report-layout">
       <section className="status-grid compact">
         <MetricCard
           label="Best Complete Lap"
@@ -216,7 +216,7 @@ export function TelemetryReportView({
         <MetricCard label="Max RPM" value={formatNumber(payload.derived?.maxRpm)} />
       </section>
 
-      <section className="panel xrk-test-panel">
+      <section className="panel telemetry-report-panel">
         <div className="panel-header">
           <div>
             <span className="eyebrow">Parsed File</span>
@@ -225,7 +225,7 @@ export function TelemetryReportView({
             </h2>
           </div>
         </div>
-        <div className="xrk-detail-grid">
+        <div className="telemetry-detail-grid">
           <Detail label="Size" value={formatBytes(payload.file?.sizeBytes)} />
           <Detail label="SHA-256" value={payload.file?.sha256 ?? "Not available"} />
           <Detail label="Channels" value={String(payload.channelSummary?.length ?? 0)} />
@@ -233,14 +233,14 @@ export function TelemetryReportView({
         </div>
       </section>
 
-      <section className="panel xrk-test-panel">
+      <section className="panel telemetry-report-panel">
         <div className="panel-header">
           <div>
             <span className="eyebrow">Laps</span>
             <h2>Lap times</h2>
           </div>
         </div>
-        <p className="xrk-chart-note">
+        <p className="telemetry-chart-note">
           Click lap bars to select or remove laps from the overlay charts.
         </p>
         <LapTimesBarChart
@@ -308,14 +308,14 @@ export function TelemetryReportView({
         onSmoothingChange={setLateralAccelerationSmoothingWindow}
       />
 
-      <section className="panel xrk-test-panel">
+      <section className="panel telemetry-report-panel">
         <div className="panel-header">
           <div>
             <span className="eyebrow">Lap Table</span>
             <h2>Lap data</h2>
           </div>
         </div>
-        <div className="xrk-table-wrap">
+        <div className="telemetry-table-wrap">
           <table className="report-table">
             <thead>
               <tr>
@@ -337,14 +337,14 @@ export function TelemetryReportView({
         </div>
       </section>
 
-      <section className="panel xrk-test-panel">
+      <section className="panel telemetry-report-panel">
         <div className="panel-header">
           <div>
             <span className="eyebrow">Channels</span>
             <h2>Largest channel summaries</h2>
           </div>
         </div>
-        <div className="xrk-table-wrap">
+        <div className="telemetry-table-wrap">
           <table className="report-table">
             <thead>
               <tr>
@@ -372,14 +372,14 @@ export function TelemetryReportView({
       </section>
 
       {showRawJson ? (
-        <section className="panel xrk-test-panel">
+        <section className="panel telemetry-report-panel">
           <div className="panel-header">
             <div>
               <span className="eyebrow">Raw Payload</span>
               <h2>Parser JSON</h2>
             </div>
           </div>
-          <pre className="xrk-json-output">
+          <pre className="telemetry-json-output">
             {rawJson ?? JSON.stringify(payload, null, 2)}
           </pre>
         </section>
@@ -414,13 +414,13 @@ function ChannelChart({
   units: string;
 }) {
   return (
-    <section className="panel xrk-test-panel">
+    <section className="panel telemetry-report-panel">
       <div className="panel-header">
         <div>
           <span className="eyebrow">{eyebrow}</span>
           <h2>{title}</h2>
         </div>
-        <div className="xrk-chart-controls">
+        <div className="telemetry-chart-controls">
           <label>
             Smoothing
             <select
@@ -438,7 +438,7 @@ function ChannelChart({
       </div>
       {channel ? (
         <>
-          <p className="xrk-chart-note">
+          <p className="telemetry-chart-note">
             Source channel: {channel.name}
             {sourceUnitsSuffix ?? (channel.units ? ` (${channel.units})` : "")}
             {smoothingWindow > 1
