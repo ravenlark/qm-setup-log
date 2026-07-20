@@ -10,9 +10,12 @@ import {
 } from "recharts";
 
 export type TelemetryChartRow = {
+  distanceIntoLapFeet?: number;
   timeIntoLapSeconds: number;
   value: number;
 };
+
+type TelemetryXAxisKey = "distanceIntoLapFeet" | "timeIntoLapSeconds";
 
 export type TelemetryChartSeries = {
   color: string;
@@ -26,6 +29,7 @@ type TelemetryLineChartProps = {
   series: TelemetryChartSeries[];
   tooltipLabel: string;
   units: string;
+  xAxisKey?: TelemetryXAxisKey;
 };
 
 export function TelemetryLineChart({
@@ -33,8 +37,12 @@ export function TelemetryLineChart({
   series,
   tooltipLabel,
   units,
+  xAxisKey = "timeIntoLapSeconds",
 }: TelemetryLineChartProps) {
   const chartRows = series.flatMap((item) => item.rows);
+  const xAxisUnit = xAxisKey === "distanceIntoLapFeet" ? "ft" : "s";
+  const xAxisLabel =
+    xAxisKey === "distanceIntoLapFeet" ? "feet into lap" : "seconds into lap";
 
   if (chartRows.length === 0) {
     return <div className="empty-state">{emptyMessage}</div>;
@@ -49,9 +57,11 @@ export function TelemetryLineChart({
         >
           <CartesianGrid stroke="#d8e1d6" strokeDasharray="3 3" vertical={false} />
           <XAxis
-            dataKey="timeIntoLapSeconds"
+            dataKey={xAxisKey}
             tick={{ fill: "#405343", fontSize: 12, fontWeight: 750 }}
-            tickFormatter={(value) => `${Number(value).toFixed(1)}s`}
+            tickFormatter={(value) =>
+              `${Number(value).toFixed(xAxisKey === "distanceIntoLapFeet" ? 0 : 1)}${xAxisUnit}`
+            }
             tickLine={false}
             type="number"
           />
@@ -69,6 +79,9 @@ export function TelemetryLineChart({
                 series={series}
                 tooltipLabel={tooltipLabel}
                 units={units}
+                xAxisKey={xAxisKey}
+                xAxisLabel={xAxisLabel}
+                xAxisUnit={xAxisUnit}
               />
             }
           />
@@ -105,6 +118,9 @@ function TelemetryTooltip({
   series,
   tooltipLabel,
   units,
+  xAxisKey,
+  xAxisLabel,
+  xAxisUnit,
 }: {
   active?: boolean;
   payload?: Array<{
@@ -116,14 +132,19 @@ function TelemetryTooltip({
   series: TelemetryChartSeries[];
   tooltipLabel: string;
   units: string;
+  xAxisKey: TelemetryXAxisKey;
+  xAxisLabel: string;
+  xAxisUnit: string;
 }) {
   if (!active || !payload?.length) return null;
 
   const row = payload[0].payload;
-  const hoverSeconds = row.timeIntoLapSeconds;
+  const hoverXValue = telemetryRowXAxisValue(row, xAxisKey);
+  if (hoverXValue === null) return null;
+
   const seriesRows = series
     .map((item) => {
-      const nearestRow = nearestTelemetryRow(item.rows, hoverSeconds);
+      const nearestRow = nearestTelemetryRow(item.rows, hoverXValue, xAxisKey);
       if (!nearestRow) return null;
 
       return {
@@ -144,7 +165,10 @@ function TelemetryTooltip({
 
   return (
     <div className="lap-chart-tooltip">
-      <strong>{hoverSeconds.toFixed(3)}s into lap</strong>
+      <strong>
+        {hoverXValue.toFixed(xAxisKey === "distanceIntoLapFeet" ? 1 : 3)}
+        {xAxisUnit} {xAxisLabel}
+      </strong>
       {seriesRows.map((item) => (
         <span className="telemetry-tooltip-row" key={item.label}>
           <i style={{ background: item.color }} />
@@ -157,15 +181,22 @@ function TelemetryTooltip({
   );
 }
 
-function nearestTelemetryRow(rows: TelemetryChartRow[], hoverSeconds: number) {
+function nearestTelemetryRow(
+  rows: TelemetryChartRow[],
+  hoverXValue: number,
+  xAxisKey: TelemetryXAxisKey,
+) {
   if (!rows.length) return null;
 
-  let nearestRow = rows[0];
-  let nearestDistance = Math.abs(rows[0].timeIntoLapSeconds - hoverSeconds);
+  let nearestRow: TelemetryChartRow | null = null;
+  let nearestDistance = Infinity;
 
-  for (let index = 1; index < rows.length; index += 1) {
+  for (let index = 0; index < rows.length; index += 1) {
     const row = rows[index];
-    const distance = Math.abs(row.timeIntoLapSeconds - hoverSeconds);
+    const rowXValue = telemetryRowXAxisValue(row, xAxisKey);
+    if (rowXValue === null) continue;
+
+    const distance = Math.abs(rowXValue - hoverXValue);
     if (distance < nearestDistance) {
       nearestDistance = distance;
       nearestRow = row;
@@ -173,4 +204,12 @@ function nearestTelemetryRow(rows: TelemetryChartRow[], hoverSeconds: number) {
   }
 
   return nearestRow;
+}
+
+function telemetryRowXAxisValue(
+  row: TelemetryChartRow,
+  xAxisKey: TelemetryXAxisKey,
+) {
+  const value = row[xAxisKey];
+  return typeof value === "number" && Number.isFinite(value) ? value : null;
 }

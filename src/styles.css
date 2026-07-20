@@ -2084,11 +2084,48 @@ textarea:hover {
   min-width: 0;
 }
 
+.report-lap-hit-column {
+  cursor: pointer;
+  fill: transparent;
+  pointer-events: all;
+}
+
+.lap-chart-selection-column.report-lap-hit-column {
+  fill: rgb(96 165 250 / 0.22);
+}
+
+.report-alignment-panel {
+  gap: var(--space-4);
+}
+
 .report-chart-note {
   margin: 0;
   color: var(--color-muted);
   font-size: var(--font-small);
   font-weight: var(--weight-normal);
+}
+
+.report-alignment-control {
+  display: grid;
+  max-width: 420px;
+  gap: var(--space-2);
+}
+
+.report-alignment-control > span {
+  color: #405343;
+  font-size: var(--font-small);
+  font-weight: var(--weight-bold);
+}
+
+.report-alignment-control small {
+  color: var(--color-muted);
+  font-size: 0.78rem;
+  font-weight: var(--weight-normal);
+}
+
+.segmented-radio input:disabled + span {
+  opacity: 0.48;
+  cursor: not-allowed;
 }
 
 .report-run-a-swatch {

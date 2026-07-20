@@ -12,15 +12,20 @@ export type TelemetryLapRef = {
   payload: XrkParseResult;
 };
 
+export type TelemetryAlignmentMode = "distance" | "time";
+
 const metersPerSecondToMph = 2.2369362921;
+const metersToFeet = 3.280839895;
 
 export function buildTelemetrySeriesForLapRefs({
   channelName,
+  alignmentMode = "time",
   colors,
   convertValue = (value) => value,
   lapRefs,
   smoothingWindow = 1,
 }: {
+  alignmentMode?: TelemetryAlignmentMode;
   channelName: string;
   colors?: string[];
   convertValue?: (value: number) => number;
@@ -31,9 +36,11 @@ export function buildTelemetrySeriesForLapRefs({
     .map((lapRef, index) => {
       const channel = findTelemetryChannel(lapRef.payload.channels, channelName);
       const rows = buildTelemetryRows({
+        alignmentMode,
         channel,
         convertValue,
         lap: lapRef.lap,
+        payload: lapRef.payload,
         smoothingWindow,
       });
       if (!rows.length) return null;
@@ -49,16 +56,20 @@ export function buildTelemetrySeriesForLapRefs({
 }
 
 export function buildTelemetryRows({
+  alignmentMode = "time",
   channel,
   convertValue = (value) => value,
   lap,
   maxRows = 1200,
+  payload,
   smoothingWindow = 1,
 }: {
+  alignmentMode?: TelemetryAlignmentMode;
   channel: XrkChannel | null;
   convertValue?: (value: number) => number;
   lap: XrkLap;
   maxRows?: number;
+  payload?: XrkParseResult;
   smoothingWindow?: number;
 }): TelemetryChartRow[] {
   if (!channel?.samples) return [];
@@ -73,31 +84,47 @@ export function buildTelemetryRows({
     return [];
   }
 
-  return downsampleTelemetryRows(
-    smoothTelemetryRows(
-      channel.samples
-        .map((sample) => {
-          const timeSeconds = sample.timeSeconds;
-          const value = sample.value;
-          if (
-            typeof timeSeconds !== "number" ||
-            typeof value !== "number" ||
-            !Number.isFinite(timeSeconds) ||
-            !Number.isFinite(value) ||
-            timeSeconds < startSeconds ||
-            timeSeconds > endSeconds
-          ) {
-            return null;
-          }
+  const distanceTrace =
+    alignmentMode === "distance" && payload
+      ? buildLapDistanceTrace(payload, lap)
+      : [];
 
-          return {
-            value: convertValue(value),
-            timeIntoLapSeconds: timeSeconds - startSeconds,
-          };
-        })
-        .filter((row): row is TelemetryChartRow => Boolean(row)),
-      smoothingWindow,
-    ),
+  if (alignmentMode === "distance" && !distanceTrace.length) {
+    return [];
+  }
+
+  const rows: TelemetryChartRow[] = [];
+  for (const sample of channel.samples) {
+    const timeSeconds = sample.timeSeconds;
+    const value = sample.value;
+    if (
+      typeof timeSeconds !== "number" ||
+      typeof value !== "number" ||
+      !Number.isFinite(timeSeconds) ||
+      !Number.isFinite(value) ||
+      timeSeconds < startSeconds ||
+      timeSeconds > endSeconds
+    ) {
+      continue;
+    }
+
+    const distanceIntoLapFeet =
+      alignmentMode === "distance"
+        ? interpolateDistanceFeetAtTime(distanceTrace, timeSeconds)
+        : undefined;
+    if (alignmentMode === "distance" && typeof distanceIntoLapFeet !== "number") {
+      continue;
+    }
+
+    rows.push({
+      distanceIntoLapFeet,
+      value: convertValue(value),
+      timeIntoLapSeconds: timeSeconds - startSeconds,
+    });
+  }
+
+  return downsampleTelemetryRows(
+    smoothTelemetryRows(rows, smoothingWindow),
     maxRows,
   );
 }
@@ -166,6 +193,10 @@ export function telemetryRpmRange(payload: XrkParseResult, lap: XrkLap) {
   };
 }
 
+export function hasGpsDistanceAlignment(lapRefs: TelemetryLapRef[]) {
+  return lapRefs.some((lapRef) => buildLapDistanceTrace(lapRef.payload, lapRef.lap).length);
+}
+
 export function convertGpsSpeedToMph(value: number) {
   return value * metersPerSecondToMph;
 }
@@ -210,4 +241,161 @@ function findRpmChannel(channels: XrkParseResult["channels"]) {
     channels?.find((channel) => channel.name?.toLowerCase().includes("rpm")) ??
     null
   );
+}
+
+type DistanceTracePoint = {
+  distanceFeet: number;
+  latitude: number;
+  longitude: number;
+  timeSeconds: number;
+};
+
+function buildLapDistanceTrace(
+  payload: XrkParseResult,
+  lap: XrkLap,
+): DistanceTracePoint[] {
+  const latitudeChannel = findTelemetryChannel(payload.channels, "GPS Latitude");
+  const longitudeChannel = findTelemetryChannel(payload.channels, "GPS Longitude");
+  if (!latitudeChannel?.samples?.length || !longitudeChannel?.samples?.length) {
+    return [];
+  }
+
+  const startSeconds = lap.startSeconds;
+  const endSeconds = lap.endSeconds;
+  if (
+    typeof startSeconds !== "number" ||
+    typeof endSeconds !== "number" ||
+    endSeconds <= startSeconds
+  ) {
+    return [];
+  }
+
+  const longitudeByTime = new Map<number, number>();
+  for (const sample of longitudeChannel.samples) {
+    if (
+      typeof sample.timeSeconds === "number" &&
+      typeof sample.value === "number" &&
+      Number.isFinite(sample.timeSeconds) &&
+      Number.isFinite(sample.value)
+    ) {
+      longitudeByTime.set(sample.timeSeconds, sample.value);
+    }
+  }
+
+  const positionRows = latitudeChannel.samples
+    .map((sample) => {
+      const timeSeconds = sample.timeSeconds;
+      const latitude = sample.value;
+      if (
+        typeof timeSeconds !== "number" ||
+        typeof latitude !== "number" ||
+        !Number.isFinite(timeSeconds) ||
+        !Number.isFinite(latitude) ||
+        timeSeconds < startSeconds ||
+        timeSeconds > endSeconds
+      ) {
+        return null;
+      }
+
+      const longitude = longitudeByTime.get(timeSeconds);
+      if (typeof longitude !== "number" || !Number.isFinite(longitude)) {
+        return null;
+      }
+
+      return {
+        latitude,
+        longitude,
+        timeSeconds,
+      };
+    })
+    .filter(
+      (
+        row,
+      ): row is {
+        latitude: number;
+        longitude: number;
+        timeSeconds: number;
+      } => Boolean(row),
+    )
+    .sort((first, second) => first.timeSeconds - second.timeSeconds);
+
+  if (positionRows.length < 2) return [];
+
+  let distanceFeet = 0;
+  return positionRows.map((row, index) => {
+    if (index > 0) {
+      const previous = positionRows[index - 1];
+      distanceFeet +=
+        haversineDistanceMeters(
+          previous.latitude,
+          previous.longitude,
+          row.latitude,
+          row.longitude,
+        ) * metersToFeet;
+    }
+
+    return {
+      distanceFeet,
+      latitude: row.latitude,
+      longitude: row.longitude,
+      timeSeconds: row.timeSeconds,
+    };
+  });
+}
+
+function interpolateDistanceFeetAtTime(
+  trace: DistanceTracePoint[],
+  timeSeconds: number,
+) {
+  if (!trace.length) return undefined;
+  if (timeSeconds <= trace[0].timeSeconds) return trace[0].distanceFeet;
+
+  const lastPoint = trace[trace.length - 1];
+  if (timeSeconds >= lastPoint.timeSeconds) return lastPoint.distanceFeet;
+
+  for (let index = 1; index < trace.length; index += 1) {
+    const current = trace[index];
+    const previous = trace[index - 1];
+    if (timeSeconds > current.timeSeconds) continue;
+
+    const timeSpan = current.timeSeconds - previous.timeSeconds;
+    if (timeSpan <= 0) return current.distanceFeet;
+
+    const ratio = (timeSeconds - previous.timeSeconds) / timeSpan;
+    return (
+      previous.distanceFeet +
+      (current.distanceFeet - previous.distanceFeet) * ratio
+    );
+  }
+
+  return lastPoint.distanceFeet;
+}
+
+function haversineDistanceMeters(
+  latitudeA: number,
+  longitudeA: number,
+  latitudeB: number,
+  longitudeB: number,
+) {
+  const earthRadiusMeters = 6371000;
+  const deltaLatitude = degreesToRadians(latitudeB - latitudeA);
+  const deltaLongitude = degreesToRadians(longitudeB - longitudeA);
+  const latARadians = degreesToRadians(latitudeA);
+  const latBRadians = degreesToRadians(latitudeB);
+
+  const haversine =
+    Math.sin(deltaLatitude / 2) ** 2 +
+    Math.cos(latARadians) *
+      Math.cos(latBRadians) *
+      Math.sin(deltaLongitude / 2) ** 2;
+
+  return (
+    earthRadiusMeters *
+    2 *
+    Math.atan2(Math.sqrt(haversine), Math.sqrt(1 - haversine))
+  );
+}
+
+function degreesToRadians(value: number) {
+  return (value * Math.PI) / 180;
 }

@@ -26,7 +26,9 @@ import {
 import {
   buildTelemetrySeriesForLapRefs,
   convertGpsSpeedToMph,
+  hasGpsDistanceAlignment,
   telemetryChannelUnits,
+  type TelemetryAlignmentMode,
   type TelemetryLapRef,
   type XrkLap,
 } from "./telemetry/telemetrySeries";
@@ -130,10 +132,13 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
   const [setupDefinitions, setSetupDefinitions] =
     useState<RuntimeSetupDefinitionMap>({});
   const [selectedCarId, setSelectedCarId] = useState("");
+  const [selectedTrackId, setSelectedTrackId] = useState("");
   const [runAId, setRunAId] = useState("");
   const [runBId, setRunBId] = useState("");
   const [selectedComparisonLapNumber, setSelectedComparisonLapNumber] =
     useState(1);
+  const [telemetryAlignmentMode, setTelemetryAlignmentMode] =
+    useState<TelemetryAlignmentMode>("time");
   const [gpsSpeedSmoothingWindow, setGpsSpeedSmoothingWindow] = useState(1);
   const [inlineAccelerationSmoothingWindow, setInlineAccelerationSmoothingWindow] =
     useState(17);
@@ -167,6 +172,15 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
     () => sessions.filter((session) => session.car_id === selectedCarId),
     [selectedCarId, sessions],
   );
+  const trackIdsForCar = useMemo(
+    () => uniqueSessionTrackIds(sessionsForCar),
+    [sessionsForCar],
+  );
+  const sessionsForCarAndTrack = useMemo(
+    () =>
+      sessionsForCar.filter((session) => session.track_id === selectedTrackId),
+    [selectedTrackId, sessionsForCar],
+  );
   const telemetryFilesBySessionId = useMemo(() => {
     const bySessionId = new Map<string, SessionTelemetryFile[]>();
     for (const file of telemetryFiles) {
@@ -176,8 +190,20 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
     }
     return bySessionId;
   }, [telemetryFiles]);
-  const runA = sessionsForCar.find((session) => session.id === runAId) ?? null;
-  const runB = sessionsForCar.find((session) => session.id === runBId) ?? null;
+  const runA =
+    sessionsForCarAndTrack.find((session) => session.id === runAId) ?? null;
+  const comparableSessionsForRunB = useMemo(
+    () =>
+      runA
+        ? sessionsForCarAndTrack.filter(
+            (session) =>
+              session.track_id === runA.track_id && session.id !== runA.id,
+          )
+        : [],
+    [runA, sessionsForCarAndTrack],
+  );
+  const runB =
+    comparableSessionsForRunB.find((session) => session.id === runBId) ?? null;
   const selectedCar = carById.get(selectedCarId);
   const carTypeFields = useMemo(
     () =>
@@ -225,6 +251,24 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
         : [],
     [telemetryComparison],
   );
+  const comparisonLapRefs = useMemo(
+    () =>
+      telemetryComparison.status === "ready"
+        ? [
+            ...telemetryComparison.runA.lapRows.map((lap, index) =>
+              comparisonLapRef(lap, `run-a-${index}`, `Run A Lap ${index + 1}`),
+            ),
+            ...telemetryComparison.runB.lapRows.map((lap, index) =>
+              comparisonLapRef(lap, `run-b-${index}`, `Run B Lap ${index + 1}`),
+            ),
+          ]
+        : [],
+    [telemetryComparison],
+  );
+  const hasGpsDistanceData = useMemo(
+    () => hasGpsDistanceAlignment(comparisonLapRefs),
+    [comparisonLapRefs],
+  );
   const gpsSpeedOverlaySeries = useMemo(
     () =>
       telemetryComparison.status === "ready"
@@ -235,9 +279,15 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
             "GPS Speed",
             convertGpsSpeedToMph,
             gpsSpeedSmoothingWindow,
+            telemetryAlignmentMode,
           )
         : [],
-    [gpsSpeedSmoothingWindow, selectedComparisonLapNumber, telemetryComparison],
+    [
+      gpsSpeedSmoothingWindow,
+      selectedComparisonLapNumber,
+      telemetryAlignmentMode,
+      telemetryComparison,
+    ],
   );
   const inlineAccelerationOverlaySeries = useMemo(
     () =>
@@ -249,11 +299,13 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
             "GPS_InlineAcc",
             undefined,
             inlineAccelerationSmoothingWindow,
+            telemetryAlignmentMode,
           )
         : [],
     [
       inlineAccelerationSmoothingWindow,
       selectedComparisonLapNumber,
+      telemetryAlignmentMode,
       telemetryComparison,
     ],
   );
@@ -267,11 +319,13 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
             "GPS_LateralAcc",
             undefined,
             lateralAccelerationSmoothingWindow,
+            telemetryAlignmentMode,
           )
         : [],
     [
       lateralAccelerationSmoothingWindow,
       selectedComparisonLapNumber,
+      telemetryAlignmentMode,
       telemetryComparison,
     ],
   );
@@ -285,9 +339,15 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
             "Lateral Grip",
             undefined,
             lateralGripSmoothingWindow,
+            telemetryAlignmentMode,
           )
         : [],
-    [lateralGripSmoothingWindow, selectedComparisonLapNumber, telemetryComparison],
+    [
+      lateralGripSmoothingWindow,
+      selectedComparisonLapNumber,
+      telemetryAlignmentMode,
+      telemetryComparison,
+    ],
   );
 
   useEffect(() => {
@@ -344,9 +404,16 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
         const initialSessions = nextSessions.filter(
           (session) => session.car_id === initialCarId,
         );
+        const initialTrackId = preferredTrackIdFor(initialSessions);
+        const initialSessionsForTrack = sessionsForTrack(
+          initialSessions,
+          initialTrackId,
+        );
         setSelectedCarId(initialCarId);
-        setRunAId(initialSessions[0]?.id ?? "");
-        setRunBId(initialSessions[1]?.id ?? initialSessions[0]?.id ?? "");
+        setSelectedTrackId(initialTrackId);
+        const initialRunAId = preferredRunAIdFor(initialSessionsForTrack);
+        setRunAId(initialRunAId);
+        setRunBId(comparisonSessionIdFor(initialSessionsForTrack, initialRunAId));
         setStatus("ready");
       })
       .catch((error: Error) => {
@@ -390,16 +457,28 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
         const nextSessionsForCar = nextSessions.filter(
           (session) => session.car_id === carId,
         );
+        const trackId =
+          selectedTrackId &&
+          nextSessionsForCar.some((session) => session.track_id === selectedTrackId)
+            ? selectedTrackId
+            : preferredTrackIdFor(nextSessionsForCar);
+        const nextSessionsForTrack = sessionsForTrack(
+          nextSessionsForCar,
+          trackId,
+        );
+        const preferredRunAId = preferredRunAIdFor(nextSessionsForTrack);
+
+        setSelectedTrackId(trackId);
 
         setRunAId((currentRunAId) =>
-          nextSessionsForCar.some((session) => session.id === currentRunAId)
+          nextSessionsForTrack.some((session) => session.id === currentRunAId)
             ? currentRunAId
-            : nextSessionsForCar[0]?.id ?? "",
+            : preferredRunAId,
         );
         setRunBId((currentRunBId) =>
-          nextSessionsForCar.some((session) => session.id === currentRunBId)
+          nextSessionsForTrack.some((session) => session.id === currentRunBId)
             ? currentRunBId
-            : nextSessionsForCar[1]?.id ?? nextSessionsForCar[0]?.id ?? "",
+            : comparisonSessionIdFor(nextSessionsForTrack, preferredRunAId),
         );
 
         return carId;
@@ -412,7 +491,7 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
       isCurrent = false;
       window.removeEventListener(SESSIONS_CHANGED_EVENT, handleSessionsChanged);
     };
-  }, [cars, supabase, userId]);
+  }, [cars, selectedTrackId, supabase, userId]);
 
   useEffect(() => {
     let isCurrent = true;
@@ -494,6 +573,19 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
   }, [runA, runB, supabase, telemetryFilesBySessionId]);
 
   useEffect(() => {
+    if (!runAId) {
+      setRunBId("");
+      return;
+    }
+
+    setRunBId((currentRunBId) =>
+      comparableSessionsForRunB.some((session) => session.id === currentRunBId)
+        ? currentRunBId
+        : comparableSessionsForRunB[0]?.id ?? "",
+    );
+  }, [comparableSessionsForRunB, runAId]);
+
+  useEffect(() => {
     if (!sharedLapRows.length) {
       setSelectedComparisonLapNumber(1);
       return;
@@ -504,11 +596,29 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
     );
   }, [sharedLapRows.length]);
 
+  useEffect(() => {
+    if (!hasGpsDistanceData && telemetryAlignmentMode === "distance") {
+      setTelemetryAlignmentMode("time");
+    }
+  }, [hasGpsDistanceData, telemetryAlignmentMode]);
+
   function updateSelectedCar(carId: string) {
     const nextSessions = sessions.filter((session) => session.car_id === carId);
+    const nextTrackId = preferredTrackIdFor(nextSessions);
+    const nextSessionsForTrack = sessionsForTrack(nextSessions, nextTrackId);
+    const nextRunAId = preferredRunAIdFor(nextSessionsForTrack);
     setSelectedCarId(carId);
-    setRunAId(nextSessions[0]?.id ?? "");
-    setRunBId(nextSessions[1]?.id ?? nextSessions[0]?.id ?? "");
+    setSelectedTrackId(nextTrackId);
+    setRunAId(nextRunAId);
+    setRunBId(comparisonSessionIdFor(nextSessionsForTrack, nextRunAId));
+  }
+
+  function updateSelectedTrack(trackId: string) {
+    const nextSessionsForTrack = sessionsForTrack(sessionsForCar, trackId);
+    const nextRunAId = preferredRunAIdFor(nextSessionsForTrack);
+    setSelectedTrackId(trackId);
+    setRunAId(nextRunAId);
+    setRunBId(comparisonSessionIdFor(nextSessionsForTrack, nextRunAId));
   }
 
   return (
@@ -527,7 +637,7 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
       ) : cars.length ? (
         <>
           <div className="report-selectors">
-            <label className="report-wide-field">
+            <label>
               Car
               <select
                 value={selectedCarId}
@@ -541,12 +651,29 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
               </select>
             </label>
             <label>
+              Track
+              <select
+                disabled={!trackIdsForCar.length}
+                value={selectedTrackId}
+                onChange={(event) => updateSelectedTrack(event.target.value)}
+              >
+                {trackIdsForCar.length ? null : (
+                  <option value="">No session tracks</option>
+                )}
+                {trackIdsForCar.map((trackId) => (
+                  <option key={trackId} value={trackId}>
+                    {trackById.get(trackId)?.name ?? "Unknown track"}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label>
               Run A
               <select
                 value={runAId}
                 onChange={(event) => setRunAId(event.target.value)}
               >
-                {sessionsForCar.map((session) => (
+                {sessionsForCarAndTrack.map((session) => (
                   <option key={session.id} value={session.id}>
                     {sessionLabel(session, trackById)}
                   </option>
@@ -556,10 +683,14 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
             <label>
               Run B
               <select
+                disabled={!comparableSessionsForRunB.length}
                 value={runBId}
                 onChange={(event) => setRunBId(event.target.value)}
               >
-                {sessionsForCar.map((session) => (
+                {comparableSessionsForRunB.length ? null : (
+                  <option value="">No same-track sessions</option>
+                )}
+                {comparableSessionsForRunB.map((session) => (
                   <option key={session.id} value={session.id}>
                     {sessionLabel(session, trackById)}
                   </option>
@@ -617,12 +748,31 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
                 </section>
               ) : null}
 
+              {telemetryComparison.status === "ready" && hasGpsDistanceData ? (
+                <section className="report-chart-panel report-alignment-panel">
+                  <div className="telemetry-chart-heading telemetry-chart-heading-single">
+                    <div className="telemetry-chart-heading-copy">
+                      <h3>Overlay Alignment</h3>
+                      <p className="telemetry-chart-note">
+                        Choose whether telemetry overlays line up by elapsed lap
+                        time or by GPS position around the lap.
+                      </p>
+                    </div>
+                  </div>
+                  <TelemetryAlignmentControl
+                    alignmentMode={telemetryAlignmentMode}
+                    onAlignmentModeChange={setTelemetryAlignmentMode}
+                  />
+                </section>
+              ) : null}
+
               {telemetryComparison.status === "ready" ? (
                 <>
                   <TelemetryOverlayPanel
                     description="Compare speed traces for the same shared lap in each session. This shows where Run B gained or lost speed against Run A."
                     emptyMessage="No GPS speed samples were found for the selected shared lap."
-                    finePrint="Displayed as mph. Traces are aligned by time into lap."
+                    finePrint="Displayed as mph."
+                    alignmentMode={telemetryAlignmentMode}
                     series={gpsSpeedOverlaySeries}
                     smoothingWindow={gpsSpeedSmoothingWindow}
                     title="GPS Speed Overlay"
@@ -633,7 +783,8 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
                   <TelemetryOverlayPanel
                     description="Compare acceleration and braking traces for the same shared lap in each session. This helps show where Run B picked up speed or gave it back."
                     emptyMessage="No inline acceleration samples were found for the selected shared lap."
-                    finePrint="Traces are aligned by time into lap."
+                    finePrint=""
+                    alignmentMode={telemetryAlignmentMode}
                     series={inlineAccelerationOverlaySeries}
                     smoothingWindow={inlineAccelerationSmoothingWindow}
                     title="Inline Acceleration Overlay"
@@ -648,7 +799,8 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
                   <TelemetryOverlayPanel
                     description="Compare lateral grip demand for the same shared lap in each session. This helps show how hard the car is working through corners."
                     emptyMessage="No lateral grip samples were found for the selected shared lap."
-                    finePrint="Traces are aligned by time into lap."
+                    finePrint=""
+                    alignmentMode={telemetryAlignmentMode}
                     series={lateralGripOverlaySeries}
                     smoothingWindow={lateralGripSmoothingWindow}
                     title="Lateral Grip Overlay"
@@ -663,7 +815,8 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
                   <TelemetryOverlayPanel
                     description="Compare side-to-side acceleration for the same shared lap in each session. This helps show differences in cornering load and direction changes."
                     emptyMessage="No lateral acceleration samples were found for the selected shared lap."
-                    finePrint="Traces are aligned by time into lap."
+                    finePrint=""
+                    alignmentMode={telemetryAlignmentMode}
                     series={lateralAccelerationOverlaySeries}
                     smoothingWindow={lateralAccelerationSmoothingWindow}
                     title="Lateral Acceleration Overlay"
@@ -731,7 +884,9 @@ export function ReportsView({ supabase, userId }: ReportsViewProps) {
               </section>
             </>
           ) : (
-            <div className="empty-state">Choose two sessions to compare.</div>
+            <div className="empty-state">
+              Choose two sessions for the same car and track to compare.
+            </div>
           )}
         </>
       ) : (
@@ -877,6 +1032,12 @@ function ComparisonLapTimesChart({
             content={<ComparisonLapTooltip />}
           />
           <Bar
+            background={
+              <ComparisonLapColumnBackground
+                selectedLapNumber={selectedLapNumber}
+                onSelectLap={onSelectLap}
+              />
+            }
             dataKey="runA"
             fill="#287a3e"
             maxBarSize={32}
@@ -887,7 +1048,7 @@ function ComparisonLapTimesChart({
             <LabelList
               dataKey="runA"
               formatter={(value: unknown) =>
-                typeof value === "number" ? value.toFixed(3) : ""
+                typeof value === "number" ? value.toFixed(2) : ""
               }
               position="top"
               className="lap-chart-label"
@@ -913,7 +1074,7 @@ function ComparisonLapTimesChart({
             <LabelList
               dataKey="runB"
               formatter={(value: unknown) =>
-                typeof value === "number" ? value.toFixed(3) : ""
+                typeof value === "number" ? value.toFixed(2) : ""
               }
               position="top"
               className="lap-chart-label"
@@ -941,7 +1102,7 @@ function ComparisonLapTimesChart({
         </span>
       </div>
       <p className="report-chart-note">
-        Selected Lap {selectedLapNumber}. Click a lap bar to update the telemetry
+        Selected Lap {selectedLapNumber}. Click a lap column to update the telemetry
         overlays below.
       </p>
       {runAExtraLaps || runBExtraLaps ? (
@@ -959,7 +1120,93 @@ function ComparisonLapTimesChart({
   );
 }
 
+function ComparisonLapColumnBackground({
+  height,
+  onSelectLap,
+  payload,
+  selectedLapNumber,
+  width,
+  x,
+  y,
+}: {
+  height?: number;
+  onSelectLap: (lapNumber: number) => void;
+  payload?: ComparisonLapRow;
+  selectedLapNumber: number;
+  width?: number;
+  x?: number;
+  y?: number;
+}) {
+  if (
+    !payload ||
+    typeof x !== "number" ||
+    typeof y !== "number" ||
+    typeof width !== "number" ||
+    typeof height !== "number" ||
+    height <= 0
+  ) {
+    return null;
+  }
+
+  const selected = payload.lapNumber === selectedLapNumber;
+  const expandedWidth = width * 2 + 14;
+
+  return (
+    <rect
+      className={
+        selected
+          ? "lap-chart-selection-column report-lap-hit-column"
+          : "report-lap-hit-column"
+      }
+      height={height}
+      rx={6}
+      width={expandedWidth}
+      x={x - 7}
+      y={y}
+      onClick={() => onSelectLap(payload.lapNumber)}
+    />
+  );
+}
+
+function TelemetryAlignmentControl({
+  alignmentMode,
+  onAlignmentModeChange,
+}: {
+  alignmentMode: TelemetryAlignmentMode;
+  onAlignmentModeChange: (alignmentMode: TelemetryAlignmentMode) => void;
+}) {
+  return (
+    <div className="report-alignment-control">
+      <span>Overlay alignment</span>
+      <div className="segmented-radio two-options">
+        <label>
+          <input
+            checked={alignmentMode === "time"}
+            name="telemetry-alignment"
+            type="radio"
+            value="time"
+            onChange={() => onAlignmentModeChange("time")}
+          />
+          <span>Time</span>
+        </label>
+        <label>
+          <input
+            checked={alignmentMode === "distance"}
+            name="telemetry-alignment"
+            type="radio"
+            value="distance"
+            onChange={() => onAlignmentModeChange("distance")}
+          />
+          <span>GPS position</span>
+        </label>
+      </div>
+      <small>GPS position aligns traces by distance into the lap.</small>
+    </div>
+  );
+}
+
 function TelemetryOverlayPanel({
+  alignmentMode,
   description,
   emptyMessage,
   finePrint,
@@ -970,6 +1217,7 @@ function TelemetryOverlayPanel({
   tooltipLabel,
   units,
 }: {
+  alignmentMode: TelemetryAlignmentMode;
   description: string;
   emptyMessage: string;
   finePrint: string;
@@ -980,13 +1228,21 @@ function TelemetryOverlayPanel({
   tooltipLabel: string;
   units: string;
 }) {
+  const alignmentText =
+    alignmentMode === "distance"
+      ? "Traces are aligned by GPS distance into lap."
+      : "Traces are aligned by time into lap.";
+
   return (
     <section className="report-chart-panel">
       <div className="telemetry-chart-heading">
         <div className="telemetry-chart-heading-copy">
           <h3>{title}</h3>
           <p className="telemetry-chart-note">{description}</p>
-          <p className="telemetry-chart-fine-print">{finePrint}</p>
+          <p className="telemetry-chart-fine-print">
+            {finePrint ? `${finePrint} ` : ""}
+            {alignmentText}
+          </p>
         </div>
         <div className="telemetry-chart-controls">
           <label>
@@ -1009,6 +1265,11 @@ function TelemetryOverlayPanel({
         series={series}
         tooltipLabel={tooltipLabel}
         units={units}
+        xAxisKey={
+          alignmentMode === "distance"
+            ? "distanceIntoLapFeet"
+            : "timeIntoLapSeconds"
+        }
       />
     </section>
   );
@@ -1215,6 +1476,7 @@ function buildChannelOverlaySeries(
   channelName: string,
   convertValue: (value: number) => number = (value) => value,
   smoothingWindow = 1,
+  alignmentMode: TelemetryAlignmentMode = "time",
 ): TelemetryChartSeries[] {
   const runALap = runALaps[selectedLapNumber - 1] ?? null;
   const runBLap = runBLaps[selectedLapNumber - 1] ?? null;
@@ -1224,6 +1486,7 @@ function buildChannelOverlaySeries(
   ].filter((lapRef): lapRef is TelemetryLapRef => Boolean(lapRef));
 
   return buildTelemetrySeriesForLapRefs({
+    alignmentMode,
     channelName,
     convertValue,
     lapRefs,
@@ -1355,6 +1618,34 @@ function sessionLabel(
   ]
     .filter(Boolean)
     .join(" - ");
+}
+
+function preferredRunAIdFor(sessions: SetupSession[]) {
+  return sessions.find((session) => session.is_baseline)?.id ?? sessions[0]?.id ?? "";
+}
+
+function preferredTrackIdFor(sessions: SetupSession[]) {
+  return (
+    sessions.find((session) => session.is_baseline)?.track_id ??
+    sessions[0]?.track_id ??
+    ""
+  );
+}
+
+function sessionsForTrack(sessions: SetupSession[], trackId: string) {
+  return sessions.filter((session) => session.track_id === trackId);
+}
+
+function comparisonSessionIdFor(sessions: SetupSession[], runAId: string) {
+  const runA = sessions.find((session) => session.id === runAId);
+  if (!runA) return "";
+
+  return (
+    sessions.find(
+      (session) =>
+        session.id !== runA.id && session.track_id === runA.track_id,
+    )?.id ?? ""
+  );
 }
 
 function uniqueSessionTrackIds(sessions: SetupSession[]) {

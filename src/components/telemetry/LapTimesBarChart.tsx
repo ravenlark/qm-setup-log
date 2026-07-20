@@ -93,7 +93,7 @@ export function LapTimesBarChart({
             <LabelList
               dataKey="durationSeconds"
               formatter={(value: unknown) =>
-                typeof value === "number" ? value.toFixed(3) : ""
+                typeof value === "number" ? value.toFixed(2) : ""
               }
               position="top"
               className="lap-chart-label"
